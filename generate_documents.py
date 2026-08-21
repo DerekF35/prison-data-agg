@@ -47,7 +47,16 @@ def create_zip_archive():
         "US_Correctional_Facilities_Methodology_Report.docx",
         "dataset_summary.json"
     ]
+    
+    import os
+    raw_dir = os.path.join(OUTPUT_DIR, "raw")
+    if os.path.exists(raw_dir):
+        for raw_file in sorted(os.listdir(raw_dir)):
+            if raw_file.endswith(".xlsx"):
+                files_to_zip.append(f"raw/{raw_file}")
+
     print(f"[*] Packaging deliverables into {ZIP_FILE}...")
+    import zipfile
     with zipfile.ZipFile(ZIP_FILE, "w", zipfile.ZIP_DEFLATED) as zf:
         for fname in files_to_zip:
             fpath = os.path.join(OUTPUT_DIR, fname)

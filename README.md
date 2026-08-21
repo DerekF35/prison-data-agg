@@ -200,6 +200,7 @@ zip -r prison_data_report.zip \
   us_correctional_facilities_master.xlsx \
   US_Correctional_Facilities_Methodology_Report.pdf \
   US_Correctional_Facilities_Methodology_Report.docx \
-  dataset_summary.json
+  dataset_summary.json \
+  raw/
 cd ..
 ```
