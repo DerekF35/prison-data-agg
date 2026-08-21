@@ -21,7 +21,7 @@ A standardized, deduplicated, and verified national database and multi-format sp
 
 * **Total Unique Facilities**: 6,788
 * **Geocoded Facilities (Mapped GPS)**: 6,788 (100.0%)
-* **Facilities with Street Addresses**: 6,785 (100.0%)
+* **Facilities with Street Addresses**: 6,785 (99.9%)
 * **Facilities with Telephone Numbers**: 6,244 (92.0%)
 * **Total Rated Bed Capacity (Design)**: 2,411,708 beds
 * **Total Reported Inmate Population**: 2,069,547 inmates
@@ -120,7 +120,7 @@ Researchers, auditors, and policy analysts should take note of the following kno
 
 ## 🧪 Automated Verification & Audit Results
 
-* **Master Audit Scorecard & Progression**: See [`audit/README.md`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/audit/README.md) for the complete chronological scorecard and history across all 9 independent adversarial audits.
+* **Master Audit Scorecard & Progression**: See [`audit/README.md`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/audit/README.md) for the complete chronological scorecard and history across all 11 independent adversarial audits.
 * **Adversarial Test Suite**: The dataset is validated by an automated test suite ([`test_deep_audit.py`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/test_deep_audit.py)):
 
 ```text
@@ -128,11 +128,11 @@ Researchers, auditors, and policy analysts should take note of the following kno
 RUNNING ADVERSARIAL FORENSIC DEEP-AUDIT TEST SUITE
 ===========================================================================
 [PASS] CSV deliverable verified (1,885,857 bytes)
-[PASS] Excel deliverable verified (1,037,802 bytes)
+[PASS] Excel deliverable verified (1,037,801 bytes)
 [PASS] JSON deliverable verified (1,980 bytes)
-[PASS] Word deliverable verified (40,845 bytes)
-[PASS] PDF deliverable verified (101,230 bytes)
-[PASS] ZIP deliverable verified (1,549,950 bytes)
+[PASS] Word deliverable verified (41,358 bytes)
+[PASS] PDF deliverable verified (105,470 bytes)
+[PASS] ZIP deliverable verified (1,552,578 bytes)
 
 [INFO] Total Records Loaded: 6,788
 [PASS] Test 1: 100.0% Unique Facility IDs (0 duplicates)
@@ -147,11 +147,13 @@ RUNNING ADVERSARIAL FORENSIC DEEP-AUDIT TEST SUITE
 [PASS] Test 10: BOP entity matching correctly guarded against county jail false positives
 [PASS] Test 11: Intra-federal complexes (Beaumont, Atlanta, Miami) and RRM offices strictly mapped with zero cross-overwriting
 [PASS] Test 12: All 51 standalone BOP records possess 100.0% valid GPS coordinates
+  [WARN] Verified 6 legitimate campus co-located facility names within expected <=10 bounds
+  [WARN] Verified 6 legitimate co-located agency coordinates within expected <=10 bounds
 [PASS] Test 13: Accounted for 6 campus co-located records and 6 co-located agency offices within strict <=10 upper bounds
 [PASS] Test 14: Exact 1-to-1 parity between CSV and Excel Master Directory (6,788 rows, 20 columns)
 [PASS] Test 15: Excel Summary Tabs match ground truth sums perfectly (6,788 facilities, 2,411,708 capacity, 2,069,547 population)
 [PASS] Test 16: Excel Data Dictionary features full 3-column Display Header to CSV snake_case key mapping
-[PASS] Test 17: Master ZIP archive verified containing all 5 primary deliverables (1,549,950 bytes)
+[PASS] Test 17: Master ZIP archive verified containing all 5 primary deliverables (1,552,578 bytes)
 
 ===========================================================================
 ALL 17 ADVERSARIAL FORENSIC AUDIT TESTS PASSED WITH ZERO DEFECTS!
