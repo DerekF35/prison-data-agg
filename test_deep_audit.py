@@ -7,17 +7,18 @@ Tests:
 3. Exact 55 valid US jurisdictions verified (All 50 states, DC, PR, GU, VI, MP)
 4. WGS84 Coordinates validity (Lower 48, AK, HI, Territories, Aleutians up to +180)
 5. 100.0% Standard 5-digit ZIP codes with preserved leading zeroes
-6. 100.0% County & 5-digit FIPS code completeness across all 6,768 records
+6. 100.0% County & 5-digit FIPS code completeness across all facilities
 7. Phone numbers format validation (including extensions) with zero sentinel strings
 8. Integer capacity and population formatting (clean discrete integers, zero-population preserved)
 9. Title Casing & Scottish/Irish name capitalization (McDuffie, McCreary, McKean, O'Brien, O'Lakes)
 10. BOP Entity Matching Protection: Zero county jails misassigned federal BOP institution URLs
-11. BOP-sourced records coordinate completeness (100% have GPS)
-12. Duplicate name/coordinate inspection and accounting
-13. Exact parity between CSV and Excel Master Directory
-14. Excel Summary Tabs match ground truth aggregations
-15. Excel Data Dictionary 3-column mapping completeness
-16. All-in-One Deliverables ZIP Archive (prison_data_report.zip) integrity and internal file validation
+11. Intra-Federal Complex Matching Precision: No cross-facility URL overwriting in FCC complexes or RRM offices
+12. BOP-sourced records coordinate completeness (100% have GPS)
+13. Duplicate name/coordinate inspection and accounting
+14. Exact parity between CSV and Excel Master Directory
+15. Excel Summary Tabs match ground truth aggregations
+16. Excel Data Dictionary 3-column mapping completeness
+17. All-in-One Deliverables ZIP Archive (prison_data_report.zip) integrity and internal file validation
 """
 
 import os
@@ -104,7 +105,7 @@ invalid_fips = df[~df['county_fips'].str.match(r'^\d{5}$')]
 assert len(missing_counties) == 0, f"Missing counties found: {len(missing_counties)}"
 assert len(missing_fips) == 0, f"Missing FIPS found: {len(missing_fips)}"
 assert len(invalid_fips) == 0, f"Invalid FIPS found: {len(invalid_fips)}"
-print("[PASS] Test 6: 100.0% County & 5-digit FIPS code completeness across all 6,768 records")
+print(f"[PASS] Test 6: 100.0% County & 5-digit FIPS code completeness across all {total_records:,} records")
 
 # Test 7: Phone Numbers Quality & Regex Conformance
 sentinel_phones = df[df['phone_number'].str.contains(r'-1--1|000-000|^\s*0\s*$', na=False)]
@@ -115,12 +116,15 @@ non_conforming_phones = populated_phones[~populated_phones['phone_number'].str.m
 assert len(non_conforming_phones) == 0, f"Found non-conforming phone numbers: {non_conforming_phones[['facility_name', 'phone_number']].head()}"
 print(f"[PASS] Test 7: {len(populated_phones):,} phone numbers strictly match formatted canonical regex")
 
-# Test 8: Integer Formats in CSV
+# Test 8: Integer Formats in CSV & Zero-Population Preservation
 cap_floats = df[df['design_capacity'].str.contains(r'\.0$', na=False)]
 pop_floats = df[df['population'].str.contains(r'\.0$', na=False)]
 assert len(cap_floats) == 0, f"Found float decimals in CSV capacity: {len(cap_floats)}"
 assert len(pop_floats) == 0, f"Found float decimals in CSV population: {len(pop_floats)}"
-print("[PASS] Test 8: Capacities and Populations stored as clean discrete integers in CSV")
+
+zero_pop_count = (df['population'] == '0').sum()
+assert zero_pop_count > 500, f"Expected >500 zero-population facilities, found {zero_pop_count}"
+print(f"[PASS] Test 8: Capacities/populations stored as discrete integers; exactly {zero_pop_count:,} zero-population records preserved")
 
 # Test 9: Title Casing and Irish/Scottish Name Formatting
 miscased_mc = df[df['facility_name'].str.contains(r'\bMc[a-z]', regex=True, na=False)]
@@ -139,25 +143,33 @@ assert not mdc_la.empty, "MDC Los Angeles missing"
 assert "bop.gov" in str(mdc_la['website'].values[0]).lower(), f"MDC Los Angeles missing BOP website: {mdc_la['website'].values[0]}"
 print("[PASS] Test 10: BOP entity matching correctly guarded against county jail false positives")
 
-# Test 11: BOP-Sourced Records Coordinate Completeness
+# Test 11: Intra-Federal Complex Matching Precision
+atl_camp = df[df['facility_id'] == '10006239']
+assert "ccm/cat" not in str(atl_camp['website'].values[0]).lower(), f"USP Atlanta Camp incorrectly overwritten with RRM URL: {atl_camp['website'].values[0]}"
+
+fci_bml = df[df['facility_id'] == '10002860']
+assert "institutions/bml" in str(fci_bml['website'].values[0]).lower(), f"FCI Beaumont Low missing BML URL: {fci_bml['website'].values[0]}"
+print("[PASS] Test 11: Intra-federal complexes and RRM field offices correctly segregated with zero cross-overwriting")
+
+# Test 12: BOP-Sourced Records Coordinate Completeness
 bop_only = df[df['data_source'] == 'Federal Bureau of Prisons (BOP)']
 bop_missing_gps = bop_only[bop_only['lat_f'].isna() | bop_only['lon_f'].isna()]
 assert len(bop_missing_gps) == 0, f"BOP records missing GPS: {len(bop_missing_gps)}"
-print(f"[PASS] Test 11: All {len(bop_only)} standalone BOP records possess 100.0% valid GPS coordinates")
+print(f"[PASS] Test 12: All {len(bop_only)} standalone BOP records possess 100.0% valid GPS coordinates")
 
-# Test 12: Duplicate Inspection & Accounting
+# Test 13: Duplicate Inspection & Accounting
 dup_names = df[df.duplicated(subset=['facility_name', 'city', 'state'], keep=False)]
 dup_coords = df[df.duplicated(subset=['latitude', 'longitude'], keep=False)]
-print(f"[PASS] Test 12: Accounted for {len(dup_names)} campus co-located records and {len(dup_coords)} co-located agency offices")
+print(f"[PASS] Test 13: Accounted for {len(dup_names)} campus co-located records and {len(dup_coords)} co-located agency offices")
 
-# Test 13: Excel vs CSV Parity
+# Test 14: Exact Parity between CSV and Excel Master Directory
 wb = openpyxl.load_workbook(XLSX_PATH, data_only=True)
 ws1 = wb['Master Facilities Directory']
 assert ws1.max_row == total_records + 1, f"Excel row count mismatch: {ws1.max_row - 1} vs {total_records}"
 assert ws1.max_column == 20, f"Excel column count mismatch: {ws1.max_column}"
-print("[PASS] Test 13: Exact 1-to-1 parity between CSV and Excel Master Directory (6,768 rows, 20 columns)")
+print(f"[PASS] Test 14: Exact 1-to-1 parity between CSV and Excel Master Directory ({total_records:,} rows, 20 columns)")
 
-# Test 14: Multi-Tab Summary Sums
+# Test 15: Multi-Tab Summary Sums
 ws2 = wb['State Summary']
 ws3 = wb['Jurisdiction Summary']
 
@@ -174,25 +186,24 @@ assert int(state_pop_sum) == int(df_pop_sum), f"State summary pop sum mismatch: 
 
 jur_facility_sum = sum(ws3.cell(r, 3).value for r in range(2, ws3.max_row + 1) if ws3.cell(r, 3).value is not None)
 assert jur_facility_sum == total_records, f"Jurisdiction summary facility sum mismatch: {jur_facility_sum} vs {total_records}"
+print(f"[PASS] Test 15: Excel Summary Tabs match ground truth sums perfectly ({state_facility_sum:,} facilities, {int(state_capacity_sum):,} capacity, {int(state_pop_sum):,} population)")
 
-print(f"[PASS] Test 14: Excel Summary Tabs match ground truth sums perfectly ({state_facility_sum:,} facilities, {int(state_capacity_sum):,} capacity, {int(state_pop_sum):,} population)")
-
-# Test 15: Excel Data Dictionary 3-Column Mapping
+# Test 16: Excel Data Dictionary 3-Column Mapping
 ws4 = wb['Data Dictionary']
 assert ws4.max_column == 3, f"Expected 3 columns in Data Dictionary, got {ws4.max_column}"
 assert ws4.cell(1, 1).value == "Display Column Header", "Header 1 mismatch"
 assert ws4.cell(1, 2).value == "CSV Field Name (snake_case)", "Header 2 mismatch"
 assert ws4.cell(1, 3).value == "Description & Definition", "Header 3 mismatch"
 assert ws4.max_row == 21, f"Expected 20 data dictionary rows + header, got {ws4.max_row}"
-print("[PASS] Test 15: Excel Data Dictionary features full 3-column Display Header to CSV snake_case key mapping")
+print("[PASS] Test 16: Excel Data Dictionary features full 3-column Display Header to CSV snake_case key mapping")
 
-# Test 16: ZIP Archive File Integrity
+# Test 17: ZIP Archive File Integrity
 with zipfile.ZipFile(ZIP_PATH, 'r') as zf:
     zip_namelist = zf.namelist()
     for req_file in ["us_correctional_facilities_master.csv", "us_correctional_facilities_master.xlsx", "US_Correctional_Facilities_Methodology_Report.pdf", "US_Correctional_Facilities_Methodology_Report.docx", "dataset_summary.json"]:
         assert req_file in zip_namelist, f"ZIP archive missing required file: {req_file}"
-print(f"[PASS] Test 16: Master ZIP archive verified containing all 5 primary deliverables ({os.path.getsize(ZIP_PATH):,} bytes)")
+print(f"[PASS] Test 17: Master ZIP archive verified containing all 5 primary deliverables ({os.path.getsize(ZIP_PATH):,} bytes)")
 
 print("\n" + "="*75)
-print("ALL 16 ADVERSARIAL FORENSIC AUDIT TESTS PASSED WITH ZERO DEFECTS!")
+print("ALL 17 ADVERSARIAL FORENSIC AUDIT TESTS PASSED WITH ZERO DEFECTS!")
 print("="*75)

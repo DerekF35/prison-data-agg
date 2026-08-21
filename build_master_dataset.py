@@ -161,7 +161,26 @@ STANDALONE_COUNTY_FIPS_MAP = {
     "BOP-SCR": ("Dallas", "48113"),
     "BOP-CDA": ("Dallas", "48113"),
     "BOP-CSA": ("Bexar", "48029"),
-    "BOP-CSE": ("King", "53033")
+    "BOP-CSE": ("King", "53033"),
+    "BOP-CAT": ("Fulton", "13121"),
+    "BOP-BMX": ("Jefferson", "48245"),
+    "BOP-BUX": ("Granville", "37077"),
+    "BOP-FLX": ("Fremont", "08043"),
+    "BOP-FOX": ("St. Francis", "05123"),
+    "BOP-HAX": ("Preston", "54077"),
+    "BOP-LOX": ("Santa Barbara", "06083"),
+    "BOP-CMM": ("Miami-Dade", "12086"),
+    "BOP-CMY": ("Montgomery", "01101"),
+    "BOP-CNK": ("New York", "36061"),
+    "BOP-OAX": ("Allen", "22003"),
+    "BOP-PEX": ("Prince George", "51149"),
+    "BOP-CPA": ("Philadelphia", "42101"),
+    "BOP-CPH": ("Maricopa", "04013"),
+    "BOP-POX": ("Grant", "22043"),
+    "BOP-THX": ("Vigo", "18167"),
+    "BOP-TCX": ("Pima", "04019"),
+    "BOP-VIX": ("San Bernardino", "06071"),
+    "BOP-YAX": ("Yazoo", "28163")
 }
 
 def clean_text(val):
@@ -209,7 +228,6 @@ def clean_phone(val):
     elif len(digits) == 11 and digits.startswith('1'):
         return f"({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
     elif len(digits) > 10:
-        # Format main 10 digits and keep extension if present
         ext = digits[10:]
         return f"({digits[:3]}) {digits[3:6]}-{digits[6:10]} Ext {ext}"
     if len(digits) < 7:
@@ -271,7 +289,7 @@ def format_title(text):
             core_formatted = core.lower()
         else:
             core_formatted = core.capitalize()
-            # Smart capitalization for Mc and O' prefixes (e.g. McDuffie, McCreary, McKean, O'Brien, O'Farrell)
+            # Smart capitalization for Mc and O' prefixes
             core_formatted = re.sub(r'^Mc([a-z])', lambda x: 'Mc' + x.group(1).upper(), core_formatted)
             core_formatted = re.sub(r"^O'([a-z])", lambda x: "O'" + x.group(1).upper(), core_formatted)
             
@@ -307,8 +325,8 @@ for feat in hifld_raw:
 
 print(f"[+] Unique baseline physical facilities from HIFLD: {len(hifld_dict):,}")
 
-# B. Enrich with BOP official data with STRICT type guards (guarded against County Jail false positives)
-bop_matched_codes = set()
+# B. Enrich with BOP official data with TYPE-GUARDED & INTRA-FEDERAL NON-COLLISION MATCHING
+bop_matched_hifld_ids = set()
 enriched_hifld_count = 0
 standalone_bop_records = []
 
@@ -319,8 +337,15 @@ for bop in bop_raw:
     bop_city = clean_text(bop.get("city")).upper()
     bop_type = clean_text(bop.get("type")).upper()
     
+    # 1. Administrative headquarters, regional offices, and RRM field offices are distinct entities (ingest as standalone)
+    if bop_type in ("RRM", "RO", "CO", "FCC", "TRN", "STAFF TRAINING ACADEMY"):
+        standalone_bop_records.append(bop)
+        continue
+        
     matched_id = None
     for fac_id, (attrs, lat, lon) in hifld_dict.items():
+        if fac_id in bop_matched_hifld_ids:
+            continue
         if clean_text(attrs.get("STATE")).upper() != bop_st:
             continue
             
@@ -330,30 +355,34 @@ for bop in bop_raw:
         is_fed = (h_type in ("FEDERAL", "MULTI") or "FEDERAL" in h_name or "USP " in h_name or 
                   "FCI " in h_name or "MDC " in h_name or "FDC " in h_name or "MCC " in h_name or 
                   "FMC " in h_name or "FPC " in h_name or "ADX " in h_name)
-        
-        # Rule 1: Exact BOP Code in facility name and MUST be Federal
-        if bop_code and is_fed and (f" {bop_code} " in f" {h_name} " or h_name.startswith(f"{bop_code} ")):
+        if not is_fed:
+            continue
+            
+        # Rule 1: Exact BOP Code in facility name
+        if bop_code and (f" {bop_code} " in f" {h_name} " or h_name.startswith(f"{bop_code} ")):
             matched_id = fac_id
             break
             
         # Rule 2: Full Title Match (e.g. 'FPC ALDERSON' == 'FPC ALDERSON')
-        if bop_name and is_fed and (bop_name == h_name):
+        if bop_name and (bop_name == h_name):
             matched_id = fac_id
             break
             
-        # Rule 3: High-confidence Federal match
-        if is_fed:
-            b_city_norm = re.sub(r'[^A-Z]', '', bop_city)
-            h_city_norm = re.sub(r'[^A-Z]', '', clean_text(attrs.get("CITY")).upper())
-            b_name_norm = re.sub(r'[^A-Z]', '', bop.get("name", "").upper())
-            h_name_norm = re.sub(r'[^A-Z]', '', h_name)
-            
-            if b_name_norm and b_name_norm in h_name_norm and (b_city_norm == h_city_norm or not b_city_norm):
-                matched_id = fac_id
-                break
+        # Rule 3: Strict Institution Core Name & City Match for Federal Facilities
+        b_name_clean = re.sub(r'[^A-Z0-9]', '', bop_name)
+        h_name_clean = re.sub(r'[^A-Z0-9]', '', h_name)
+        b_city_clean = re.sub(r'[^A-Z0-9]', '', bop_city)
+        h_city_clean = re.sub(r'[^A-Z0-9]', '', clean_text(attrs.get("CITY")).upper())
+        
+        b_core = re.sub(r'^(FCI|USP|FDC|MDC|MCC|FMC|FPC|ADX|FEDERALPRISONCAMP|FEDERALCORRECTIONALINSTITUTION|UNITEDSTATESPENITENTIARY)', '', b_name_clean)
+        h_core = re.sub(r'^(FCI|USP|FDC|MDC|MCC|FMC|FPC|ADX|FEDERALPRISONCAMP|FEDERALCORRECTIONALINSTITUTION|UNITEDSTATESPENITENTIARY)', '', h_name_clean)
+        
+        if (b_city_clean == h_city_clean or not b_city_clean) and b_core and (b_core in h_name_clean or b_core == h_core):
+            matched_id = fac_id
+            break
 
     if matched_id:
-        bop_matched_codes.add(bop_code)
+        bop_matched_hifld_ids.add(matched_id)
         enriched_hifld_count += 1
         attrs, lat, lon = hifld_dict[matched_id]
         
@@ -372,7 +401,7 @@ for bop in bop_raw:
         standalone_bop_records.append(bop)
 
 print(f"[+] HIFLD records enriched with official BOP contact/URLs: {enriched_hifld_count:,}")
-print(f"[+] Standalone federal institutions / regional offices added: {len(standalone_bop_records):,}")
+print(f"[+] Standalone federal institutions / administrative offices added: {len(standalone_bop_records):,}")
 
 # C. Build normalized master record list
 master_records = []
