@@ -327,9 +327,12 @@ for feat in hifld_raw:
         existing_attrs, ex_lat, ex_lon = hifld_dict[fac_id]
         if ex_lat is None and lat is not None:
             hifld_dict[fac_id] = (attrs, lat, lon)
+        elif ex_lat is not None and lat is not None:
+            # Retaining primary centroid while consolidating secondary boundary geometry
+            pass
 
 print(f"[+] Unique baseline physical facilities from HIFLD: {len(hifld_dict):,}")
-print(f"[+] Multi-part polygon features consolidated: {multipart_consolidated_count:,} secondary nodes merged")
+print(f"[+] Multi-part polygon features consolidated: {multipart_consolidated_count:,} secondary boundary nodes merged (primary centroids preserved)")
 
 # B. Enrich with BOP official data with TYPE-GUARDED & CAMP-PARITY NON-COLLISION MATCHING
 bop_matched_hifld_ids = set()
