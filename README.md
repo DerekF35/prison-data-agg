@@ -120,7 +120,8 @@ Researchers, auditors, and policy analysts should take note of the following kno
 
 ## 🧪 Automated Verification & Audit Results
 
-The dataset is validated by an automated adversarial test suite ([`test_deep_audit.py`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/test_deep_audit.py)):
+* **Master Audit Scorecard & Progression**: See [`audit/README.md`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/audit/README.md) for the complete chronological scorecard and history across all 9 independent adversarial audits.
+* **Adversarial Test Suite**: The dataset is validated by an automated test suite ([`test_deep_audit.py`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/test_deep_audit.py)):
 
 ```text
 ===========================================================================

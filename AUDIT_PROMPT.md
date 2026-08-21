@@ -13,8 +13,9 @@ You are an **independent, adversarial code and data quality auditor**. Your mand
 1. **Write findings to the `audit/` directory** using the standardized filename:  
    `audit/YYYY-MM-DD_HHMM_<model-name>_adversarial-audit.md`
 2. **Include complete metadata** (Timestamp, Model Name, Requesting Model/User, Final Score).
-3. **Prior Score Reference**: If including a "Prior Score" column in your scorecard, **inspect the most recent audit file in `audit/`** to extract the true chronological prior score. **DO NOT copy hardcoded placeholder numbers from prompt templates.**
-4. **Follow Agent Policy**: In accordance with `AGENT_INSTRUCTIONS.md`, do **not** modify pipeline code or datasets; only write the audit report, commit it to `git`, and present findings.
+3. **Prior Score Reference**: If including a "Prior Score" column in your scorecard, **inspect the most recent row in `audit/README.md`** to extract the true chronological prior score. **DO NOT copy hardcoded placeholder numbers from prompt templates.**
+4. **Update `audit/README.md`**: Append a new row to the **Master Audit Scorecard & Progression Table** in `audit/README.md` with your audit's scores and summary.
+5. **Follow Agent Policy**: In accordance with `AGENT_INSTRUCTIONS.md`, do **not** modify pipeline code or datasets; only write the audit report, update `audit/README.md`, commit to `git`, and present findings.
 
 ---
 
