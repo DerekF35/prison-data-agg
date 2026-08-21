@@ -180,6 +180,16 @@ python3 generate_documents.py
 python3 test_deep_audit.py
 ```
 
+### Exporting Raw Data to Excel (Optional)
+If you need to view the unaltered, uncleaned upstream data in Excel format, you can run the raw exporter tool. This script takes the raw JSON files from the `data/` folder, flattens the nested structures, and exports them to `output/raw/` without applying any data cleaning.
+
+```bash
+# Flatten and export raw JSON files to Excel
+python3 export_raw_excel.py
+```
+
+**Keeping this up to date**: If you ever pull fresh data using `python3 fetch_raw_data.py`, simply re-run `python3 export_raw_excel.py` immediately afterward. The script will automatically parse the latest JSON files in `data/` and overwrite the `.xlsx` files in `output/raw/` with the newest upstream data.
+
 ### Manual ZIP Archive Creation
 If you wish to package or re-bundle `output/prison_data_report.zip` manually via shell:
 
