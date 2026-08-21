@@ -1,6 +1,6 @@
 # United States Correctional Facilities Master Database
 
-A standardized, deduplicated, and verified national database and multi-format spreadsheets (CSV & Excel) of all **6,787 physical correctional facilities** in the United States, spanning federal, state, county, municipal, and private sectors across all 50 states, the District of Columbia, and 5 US territories.
+A standardized, deduplicated, and verified national database and multi-format spreadsheets (CSV & Excel) of all **6,788 physical correctional facilities** in the United States, spanning federal, state, county, municipal, and private sectors across all 50 states, the District of Columbia, and 5 US territories.
 
 ---
 
@@ -9,7 +9,7 @@ A standardized, deduplicated, and verified national database and multi-format sp
 | Deliverable | File Path | Format / Details |
 | :--- | :--- | :--- |
 | **All-in-One Deliverables Archive** | [`output/prison_data_report.zip`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/output/prison_data_report.zip) | ZIP archive bundling master CSV, Excel workbook, PDF/Word reports, and JSON summary |
-| **Master CSV Dataset** | [`output/us_correctional_facilities_master.csv`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/output/us_correctional_facilities_master.csv) | UTF-8 CSV, 6,787 rows, 20 standardized columns with preserved leading zeroes |
+| **Master CSV Dataset** | [`output/us_correctional_facilities_master.csv`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/output/us_correctional_facilities_master.csv) | UTF-8 CSV, 6,788 rows, 20 standardized columns with preserved leading zeroes |
 | **Master Excel Workbook** | [`output/us_correctional_facilities_master.xlsx`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/output/us_correctional_facilities_master.xlsx) | 4-tab workbook: *Master Directory*, *State Summary*, *Jurisdiction Summary*, *Data Dictionary* |
 | **Methodology Report (PDF)** | [`output/US_Correctional_Facilities_Methodology_Report.pdf`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/output/US_Correctional_Facilities_Methodology_Report.pdf) | Print-ready PDF report detailing data provenance and cleaning algorithms |
 | **Methodology Report (Word)** | [`output/US_Correctional_Facilities_Methodology_Report.docx`](file:///home/derekf35/Development/PROJECTS/prison-data-agg/output/US_Correctional_Facilities_Methodology_Report.docx) | Fully styled Microsoft Word document for policy, research, and legal teams |
@@ -19,10 +19,10 @@ A standardized, deduplicated, and verified national database and multi-format sp
 
 ## 📊 Summary Statistics
 
-* **Total Unique Facilities**: 6,787
-* **Geocoded Facilities (Mapped GPS)**: 6,787 (100.0%)
-* **Facilities with Street Addresses**: 6,784 (100.0%)
-* **Facilities with Telephone Numbers**: 6,243 (92.0%)
+* **Total Unique Facilities**: 6,788
+* **Geocoded Facilities (Mapped GPS)**: 6,788 (100.0%)
+* **Facilities with Street Addresses**: 6,785 (100.0%)
+* **Facilities with Telephone Numbers**: 6,244 (92.0%)
 * **Total Rated Bed Capacity (Design)**: 2,411,708 beds
 * **Total Reported Inmate Population**: 2,069,547 inmates
 * **Jurisdictions Covered**: 55 (All 50 US States + District of Columbia + Puerto Rico, Guam, US Virgin Islands, and Northern Mariana Islands)
@@ -32,11 +32,11 @@ A standardized, deduplicated, and verified national database and multi-format sp
 | :--- | :---: | :---: |
 | **County / Local Jails** | 3,960 | 58.3% |
 | **State DOC Facilities** | 2,273 | 33.5% |
-| **Federal (BOP & USMS)** | 307 | 4.5% |
+| **Federal (BOP & USMS)** | 308 | 4.5% |
 | **Municipal / Local Lockups** | 184 | 2.7% |
 | **Multi-Jurisdiction Facilities** | 36 | 0.5% |
 | **Not Specified (Tribal / Contract / Unrecorded)** | 27 | 0.4% |
-| **Total** | **6,787** | **100.0%** |
+| **Total** | **6,788** | **100.0%** |
 
 ---
 
@@ -57,9 +57,8 @@ A standardized, deduplicated, and verified national database and multi-format sp
 1. **Multi-Part GIS Polygon Deduplication**:
    * Upstream HIFLD contains multiple polygon centroids per physical campus (e.g. separate boundary nodes for detention barracks, perimeter towers, and administrative wings).
    * Grouped and deduplicated strictly by `FACILITYID`, reducing 10,738 raw GIS feature records to 6,737 unique physical facilities while ensuring coordinate retention.
-2. **Type-Guarded & Non-Colliding BOP Entity Matching**:
-   * To prevent false positives across both county facilities and intra-federal complexes (e.g. Beaumont, Atlanta, Coleman), the pipeline enforces strict federal type guards and separates administrative entities (RRM, Regional Offices, FCC complexes) into standalone records, while matching physical institutions (USP, FCI, FDC, MDC) strictly by core institution name and city.
-   * Enriched federal institutions with direct BOP web URLs (`https://www.bop.gov/locations/institutions/...`), direct switchboards, and specific security ratings.
+2. **Type-Guarded & Camp-Parity BOP Entity Matching**:
+   * To prevent false positives across both county facilities and intra-federal complexes (e.g. Beaumont, Atlanta, Coleman), the pipeline enforces strict federal type guards, separates administrative entities (RRM, Regional Offices, FCC complexes) into standalone records, and enforces camp-to-camp matching parity so satellite camps do not steal parent institution URLs (e.g. *USP Beaumont* correctly receives `/institutions/bmp/` while *FCI Beaumont Low* receives `/institutions/bml/`).
 3. **Preservation of Legitimate Zero Counts**:
    * `clean_int()` preserves valid `0` counts for unoccupied, newly constructed, or temporary intake facilities (625 records), while scrubbing negative placeholder sentinels (`-999`, `-1`, `99999`) to clean nulls.
 4. **Typography, Acronyms & Scottish/Irish Surnames**:
@@ -105,31 +104,31 @@ The dataset is validated by an automated adversarial test suite ([`test_deep_aud
 ===========================================================================
 RUNNING ADVERSARIAL FORENSIC DEEP-AUDIT TEST SUITE
 ===========================================================================
-[PASS] CSV deliverable verified (1,885,581 bytes)
-[PASS] Excel deliverable verified (1,037,560 bytes)
+[PASS] CSV deliverable verified (1,885,857 bytes)
+[PASS] Excel deliverable verified (1,037,803 bytes)
 [PASS] JSON deliverable verified (1,980 bytes)
-[PASS] Word deliverable verified (40,742 bytes)
+[PASS] Word deliverable verified (40,753 bytes)
 [PASS] PDF deliverable verified (100,527 bytes)
-[PASS] ZIP deliverable verified (1,549,850 bytes)
+[PASS] ZIP deliverable verified (1,549,514 bytes)
 
-[INFO] Total Records Loaded: 6,787
+[INFO] Total Records Loaded: 6,788
 [PASS] Test 1: 100.0% Unique Facility IDs (0 duplicates)
 [PASS] Test 2: Mandatory string fields (Name, State, Jurisdiction, Status) 100% complete
 [PASS] Test 3: Exact 55 valid US jurisdictions verified (All 50 states, DC, PR, GU, VI, MP)
 [PASS] Test 4: 100.0% Valid WGS84 Coordinates strictly within geographic bounds
 [PASS] Test 5: 100.0% Standard 5-digit ZIP codes with preserved leading zeroes
-[PASS] Test 6: 100.0% County & 5-digit FIPS code completeness across all 6,787 records
-[PASS] Test 7: 6,243 phone numbers strictly match formatted canonical regex
+[PASS] Test 6: 100.0% County & 5-digit FIPS code completeness across all 6,788 records
+[PASS] Test 7: 6,244 phone numbers strictly match formatted canonical regex
 [PASS] Test 8: Capacities/populations stored as discrete integers; exactly 625 zero-population records preserved
 [PASS] Test 9: Scottish/Irish name patterns (McDuffie, McCreary, McKean, O'Brien, O'Lakes) correctly capitalized
 [PASS] Test 10: BOP entity matching correctly guarded against county jail false positives
-[PASS] Test 11: Intra-federal complexes and RRM field offices correctly segregated with zero cross-overwriting
-[PASS] Test 12: All 50 standalone BOP records possess 100.0% valid GPS coordinates
-[PASS] Test 13: Accounted for 6 campus co-located records and 4 co-located agency offices
-[PASS] Test 14: Exact 1-to-1 parity between CSV and Excel Master Directory (6,787 rows, 20 columns)
-[PASS] Test 15: Excel Summary Tabs match ground truth sums perfectly (6,787 facilities, 2,411,708 capacity, 2,069,547 population)
+[PASS] Test 11: Intra-federal complexes (Beaumont, Atlanta, Miami) and RRM offices strictly mapped with zero cross-overwriting
+[PASS] Test 12: All 51 standalone BOP records possess 100.0% valid GPS coordinates
+[PASS] Test 13: Accounted for 6 campus co-located records and 6 co-located agency offices
+[PASS] Test 14: Exact 1-to-1 parity between CSV and Excel Master Directory (6,788 rows, 20 columns)
+[PASS] Test 15: Excel Summary Tabs match ground truth sums perfectly (6,788 facilities, 2,411,708 capacity, 2,069,547 population)
 [PASS] Test 16: Excel Data Dictionary features full 3-column Display Header to CSV snake_case key mapping
-[PASS] Test 17: Master ZIP archive verified containing all 5 primary deliverables (1,549,850 bytes)
+[PASS] Test 17: Master ZIP archive verified containing all 5 primary deliverables (1,549,514 bytes)
 
 ===========================================================================
 ALL 17 ADVERSARIAL FORENSIC AUDIT TESTS PASSED WITH ZERO DEFECTS!

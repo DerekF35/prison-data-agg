@@ -12,7 +12,7 @@ Tests:
 8. Integer capacity and population formatting (clean discrete integers, zero-population preserved)
 9. Title Casing & Scottish/Irish name capitalization (McDuffie, McCreary, McKean, O'Brien, O'Lakes)
 10. BOP Entity Matching Protection: Zero county jails misassigned federal BOP institution URLs
-11. Intra-Federal Complex Matching Precision: No cross-facility URL overwriting in FCC complexes or RRM offices
+11. Intra-Federal Complex Matching Precision: No cross-facility URL overwriting in FCC complexes or RRM offices (Beaumont, Atlanta, Miami)
 12. BOP-sourced records coordinate completeness (100% have GPS)
 13. Duplicate name/coordinate inspection and accounting
 14. Exact parity between CSV and Excel Master Directory
@@ -143,13 +143,26 @@ assert not mdc_la.empty, "MDC Los Angeles missing"
 assert "bop.gov" in str(mdc_la['website'].values[0]).lower(), f"MDC Los Angeles missing BOP website: {mdc_la['website'].values[0]}"
 print("[PASS] Test 10: BOP entity matching correctly guarded against county jail false positives")
 
-# Test 11: Intra-Federal Complex Matching Precision
-atl_camp = df[df['facility_id'] == '10006239']
-assert "ccm/cat" not in str(atl_camp['website'].values[0]).lower(), f"USP Atlanta Camp incorrectly overwritten with RRM URL: {atl_camp['website'].values[0]}"
+# Test 11: Intra-Federal Complex Matching Precision (Beaumont, Atlanta, Miami)
+usp_bmt = df[df['facility_id'] == '10001990']
+assert not usp_bmt.empty, "USP Beaumont missing"
+assert "institutions/bmp" in str(usp_bmt['website'].values[0]).lower(), f"USP Beaumont missing BMP URL: {usp_bmt['website'].values[0]}"
 
 fci_bml = df[df['facility_id'] == '10002860']
+assert not fci_bml.empty, "FCI Beaumont Low missing"
 assert "institutions/bml" in str(fci_bml['website'].values[0]).lower(), f"FCI Beaumont Low missing BML URL: {fci_bml['website'].values[0]}"
-print("[PASS] Test 11: Intra-federal complexes and RRM field offices correctly segregated with zero cross-overwriting")
+
+fci_bmm = df[df['facility_id'] == '10001989']
+assert not fci_bmm.empty, "FCI Beaumont Medium missing"
+assert "institutions/bmm" in str(fci_bmm['website'].values[0]).lower(), f"FCI Beaumont Medium missing BMM URL: {fci_bmm['website'].values[0]}"
+
+usp_atl = df[df['facility_id'] == '10000285']
+assert not usp_atl.empty, "USP Atlanta missing"
+assert "institutions/atl" in str(usp_atl['website'].values[0]).lower(), f"USP Atlanta missing ATL URL: {usp_atl['website'].values[0]}"
+
+atl_camp = df[df['facility_id'] == '10006239']
+assert "ccm/cat" not in str(atl_camp['website'].values[0]).lower(), f"USP Atlanta Camp incorrectly overwritten with RRM URL: {atl_camp['website'].values[0]}"
+print("[PASS] Test 11: Intra-federal complexes (Beaumont, Atlanta, Miami) and RRM offices strictly mapped with zero cross-overwriting")
 
 # Test 12: BOP-Sourced Records Coordinate Completeness
 bop_only = df[df['data_source'] == 'Federal Bureau of Prisons (BOP)']

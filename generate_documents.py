@@ -93,8 +93,8 @@ def create_methodology_document():
     meta_p.paragraph_format.space_after = Pt(16)
     meta_run = meta_p.add_run(
         f"Publication Date: {datetime.now().strftime('%B %d, %Y')}  |  "
-        "Coverage: All 50 States, DC, PR, GU, VI, MP (6,787 Facilities)  |  "
-        "Version: 2.2 (Audited & Verified)"
+        "Coverage: All 50 States, DC, PR, GU, VI, MP (6,788 Facilities)  |  "
+        "Version: 2.3 (Audited & Verified)"
     )
     meta_run.font.name = "Calibri"
     meta_run.font.size = Pt(9.5)
@@ -158,7 +158,7 @@ def create_methodology_document():
         "This methodology report establishes the technical architecture, data provenance, cleaning rules, "
         "and deduplication logic utilized to build the United States Correctional Facilities Master Database. "
         "The resulting master dataset provides researchers, government agencies, and policy analysts with a unified, "
-        "standardized repository of 6,787 physical correctional institutions operating across all 50 US states, "
+        "standardized repository of 6,788 physical correctional institutions operating across all 50 US states, "
         "the District of Columbia, and five US territories (Puerto Rico, Guam, US Virgin Islands, and Northern Mariana Islands)."
     )
 
@@ -167,8 +167,8 @@ def create_methodology_document():
     table_metrics.alignment = WD_TABLE_ALIGNMENT.CENTER
     metrics_data = [
         ("Metric Description", "Aggregated Total", "Completeness / Verification"),
-        ("Total Unique Facilities", "6,787", "100.0% Unique Primary IDs"),
-        ("Facilities with Valid GPS Coordinates", "6,787", "100.0% Geocoded (WGS84)"),
+        ("Total Unique Facilities", "6,788", "100.0% Unique Primary IDs"),
+        ("Facilities with Valid GPS Coordinates", "6,788", "100.0% Geocoded (WGS84)"),
         ("Total Rated Bed Capacity (Design)", "2,411,708 beds", "Official Agency Rated Counts"),
         ("Total Reported Inmate Population", "2,069,547 inmates", "Point-in-Time Census Data"),
         ("Geographic Jurisdictions Covered", "55 Jurisdictions", "50 States + DC + PR, GU, VI, MP")
@@ -211,10 +211,11 @@ def create_methodology_document():
     add_bullet("Multi-Part Feature Deduplication: ",
                "HIFLD polygon boundaries frequently export multiple geometry centroids for a single campus, resulting in 4,000 "
                "redundant rows. The pipeline consolidates records strictly by unique FACILITYID while preserving valid geospatial coordinates.")
-    add_bullet("Type-Guarded & Non-Colliding BOP Entity Matching: ",
+    add_bullet("Type-Guarded & Camp-Parity BOP Entity Matching: ",
                "To prevent false positives across both county facilities and intra-federal complexes (e.g. Beaumont, Atlanta, Coleman), "
-               "the pipeline enforces strict federal type guards and separates administrative entities (RRM, Regional Offices, FCC complexes) "
-               "into standalone records, while matching physical institutions (USP, FCI, FDC, MDC) strictly by core institution name and city.")
+               "the pipeline enforces strict federal type guards, separates administrative entities (RRM, Regional Offices, FCC complexes) "
+               "into standalone records, and enforces camp-to-camp matching parity so satellite camps do not steal parent institution URLs "
+               "(e.g. USP Beaumont correctly receives /institutions/bmp/ while FCI Beaumont Low receives /institutions/bml/).")
     add_bullet("Preservation of Zero-Population Data: ",
                "Valid zero-population counts for brand-new, temporarily unpopulated, or specialized intake facilities (625 records) are retained as 0, "
                "while negative sentinels (-999, -1, 99999) are scrubbed to null.")
@@ -235,7 +236,7 @@ def create_methodology_document():
         ("Jurisdiction Level", "Facility Count", "Percentage of Dataset"),
         ("County / Local Jails", "3,960", "58.3%"),
         ("State DOC Facilities", "2,273", "33.5%"),
-        ("Federal (BOP & USMS)", "307", "4.5%"),
+        ("Federal (BOP & USMS)", "308", "4.5%"),
         ("Municipal / City Lockups", "184", "2.7%"),
         ("Multi-Jurisdiction Facilities", "36", "0.5%"),
         ("Not Specified (Tribal / Contract / Unrecorded)", "27", "0.4%")

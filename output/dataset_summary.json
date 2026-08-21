@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-21T02:29:47.468559+00:00",
-  "total_unique_facilities": 6787,
+  "generated_at": "2026-08-21T02:38:13.846576+00:00",
+  "total_unique_facilities": 6788,
   "total_reported_capacity": 2411708,
   "total_reported_population": 2069547,
-  "facilities_with_gps_coordinates": 6787,
-  "facilities_with_street_address": 6784,
-  "facilities_with_phone_number": 6243,
-  "facilities_with_website": 6015,
+  "facilities_with_gps_coordinates": 6788,
+  "facilities_with_street_address": 6785,
+  "facilities_with_phone_number": 6244,
+  "facilities_with_website": 6016,
   "states_and_territories_count": 55,
   "states_list": [
     "AK",
@@ -68,13 +68,13 @@
   "jurisdiction_breakdown": {
     "County / Local": 3960,
     "State": 2273,
-    "Federal": 307,
+    "Federal": 308,
     "Municipal / Local": 184,
     "Multi-Jurisdiction": 36,
     "Not Specified": 27
   },
   "operational_status_breakdown": {
-    "Open": 6072,
+    "Open": 6073,
     "Closed": 619,
     "Not Available": 96
   },
@@ -82,7 +82,7 @@
     "Not Specified": 2853,
     "Juvenile": 1223,
     "Maximum": 959,
-    "Minimum": 913,
+    "Minimum": 914,
     "Medium": 621,
     "Close": 169,
     "Administrative": 47,

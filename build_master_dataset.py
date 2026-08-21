@@ -180,7 +180,9 @@ STANDALONE_COUNTY_FIPS_MAP = {
     "BOP-THX": ("Vigo", "18167"),
     "BOP-TCX": ("Pima", "04019"),
     "BOP-VIX": ("San Bernardino", "06071"),
-    "BOP-YAX": ("Yazoo", "28163")
+    "BOP-YAX": ("Yazoo", "28163"),
+    "BOP-MRG": ("Monongalia", "54061"),
+    "BOP-HER": ("Lassen", "06035")
 }
 
 def clean_text(val):
@@ -322,10 +324,13 @@ for feat in hifld_raw:
         existing_attrs, ex_lat, ex_lon = hifld_dict[fac_id]
         if ex_lat is None and lat is not None:
             hifld_dict[fac_id] = (attrs, lat, lon)
+        elif ex_lat is not None and lat is not None:
+            # Retaining primary centroid for duplicate multipart GIS boundary
+            pass
 
 print(f"[+] Unique baseline physical facilities from HIFLD: {len(hifld_dict):,}")
 
-# B. Enrich with BOP official data with TYPE-GUARDED & INTRA-FEDERAL NON-COLLISION MATCHING
+# B. Enrich with BOP official data with TYPE-GUARDED & CAMP-PARITY NON-COLLISION MATCHING
 bop_matched_hifld_ids = set()
 enriched_hifld_count = 0
 standalone_bop_records = []
@@ -343,6 +348,8 @@ for bop in bop_raw:
         continue
         
     matched_id = None
+    
+    # Priority 1: Exact Title or Exact BOP Code Match
     for fac_id, (attrs, lat, lon) in hifld_dict.items():
         if fac_id in bop_matched_hifld_ids:
             continue
@@ -358,28 +365,45 @@ for bop in bop_raw:
         if not is_fed:
             continue
             
-        # Rule 1: Exact BOP Code in facility name
-        if bop_code and (f" {bop_code} " in f" {h_name} " or h_name.startswith(f"{bop_code} ")):
+        if bop_name == h_name or (bop_code and (f" {bop_code} " in f" {h_name} " or h_name.startswith(f"{bop_code} "))):
             matched_id = fac_id
             break
-            
-        # Rule 2: Full Title Match (e.g. 'FPC ALDERSON' == 'FPC ALDERSON')
-        if bop_name and (bop_name == h_name):
-            matched_id = fac_id
-            break
-            
-        # Rule 3: Strict Institution Core Name & City Match for Federal Facilities
+
+    # Priority 2: Core Institution Name & Camp-Parity Match
+    if not matched_id:
         b_name_clean = re.sub(r'[^A-Z0-9]', '', bop_name)
-        h_name_clean = re.sub(r'[^A-Z0-9]', '', h_name)
         b_city_clean = re.sub(r'[^A-Z0-9]', '', bop_city)
-        h_city_clean = re.sub(r'[^A-Z0-9]', '', clean_text(attrs.get("CITY")).upper())
+        b_is_camp = ("CAMP" in bop_name) or ("FPC" in bop_name)
         
-        b_core = re.sub(r'^(FCI|USP|FDC|MDC|MCC|FMC|FPC|ADX|FEDERALPRISONCAMP|FEDERALCORRECTIONALINSTITUTION|UNITEDSTATESPENITENTIARY)', '', b_name_clean)
-        h_core = re.sub(r'^(FCI|USP|FDC|MDC|MCC|FMC|FPC|ADX|FEDERALPRISONCAMP|FEDERALCORRECTIONALINSTITUTION|UNITEDSTATESPENITENTIARY)', '', h_name_clean)
-        
-        if (b_city_clean == h_city_clean or not b_city_clean) and b_core and (b_core in h_name_clean or b_core == h_core):
-            matched_id = fac_id
-            break
+        for fac_id, (attrs, lat, lon) in hifld_dict.items():
+            if fac_id in bop_matched_hifld_ids:
+                continue
+            if clean_text(attrs.get("STATE")).upper() != bop_st:
+                continue
+                
+            h_name = clean_text(attrs.get("NAME")).upper()
+            h_type = clean_text(attrs.get("TYPE")).upper()
+            
+            is_fed = (h_type in ("FEDERAL", "MULTI") or "FEDERAL" in h_name or "USP " in h_name or 
+                      "FCI " in h_name or "MDC " in h_name or "FDC " in h_name or "MCC " in h_name or 
+                      "FMC " in h_name or "FPC " in h_name or "ADX " in h_name)
+            if not is_fed:
+                continue
+                
+            h_name_clean = re.sub(r'[^A-Z0-9]', '', h_name)
+            h_city_clean = re.sub(r'[^A-Z0-9]', '', clean_text(attrs.get("CITY")).upper())
+            h_is_camp = ("CAMP" in h_name) or ("FPC" in h_name)
+            
+            # Enforce camp-to-camp matching parity (prevents camp from stealing parent USP/FCI URL)
+            if b_is_camp != h_is_camp:
+                continue
+                
+            b_core = re.sub(r'^(FCI|USP|FDC|MDC|MCC|FMC|FPC|ADX|FEDERALPRISONCAMP|FEDERALCORRECTIONALINSTITUTION|UNITEDSTATESPENITENTIARY)', '', b_name_clean)
+            h_core = re.sub(r'^(FCI|USP|FDC|MDC|MCC|FMC|FPC|ADX|FEDERALPRISONCAMP|FEDERALCORRECTIONALINSTITUTION|UNITEDSTATESPENITENTIARY)', '', h_name_clean)
+            
+            if (b_city_clean == h_city_clean or not b_city_clean) and b_core and (b_core == h_core or b_core in h_core):
+                matched_id = fac_id
+                break
 
     if matched_id:
         bop_matched_hifld_ids.add(matched_id)
