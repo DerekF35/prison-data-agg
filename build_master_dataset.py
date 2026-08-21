@@ -263,6 +263,17 @@ def clean_coord(val, is_lat=True):
     except (ValueError, TypeError):
         return None
 
+def normalize_gender(val):
+    """Normalize gender values to documented schema: Male, Female, Co-ed, Not Specified."""
+    text = clean_text(val).title()
+    if not text:
+        return "Not Specified"
+    if text.lower() == "mixed":
+        return "Co-ed"
+    if text in ("Male", "Female", "Co-Ed", "Co-ed"):
+        return text if text != "Co-Ed" else "Co-ed"
+    return "Not Specified"
+
 def format_title(text):
     if not text:
         return ""
@@ -530,7 +541,7 @@ for fac_id, (attrs, lat, lon) in hifld_dict.items():
         "longitude": lon,
         "design_capacity": cap,
         "population": pop,
-        "gender": clean_text(attrs.get("GENDER")).title() or "Not Specified",
+        "gender": normalize_gender(attrs.get("GENDER")),
         "data_source": "DHS HIFLD Critical Infrastructure"
     }
     master_records.append(rec)
@@ -545,7 +556,7 @@ for bop in standalone_bop_records:
     lon = clean_coord(bop.get("longitude"), is_lat=False)
     bop_type_desc = clean_text(bop.get("faclTypeDescription") or bop.get("type"))
     bop_sec = clean_text(bop.get("securityLevel")).title() or "Administrative"
-    bop_gender = clean_text(bop.get("gender")).title() or "Not Specified"
+    bop_gender = normalize_gender(bop.get("gender"))
     bop_code = clean_text(bop.get("code")).upper()
     bop_url = "https://www.bop.gov" + bop.get("url") if bop.get("url") else "https://www.bop.gov/locations/"
     bop_st = clean_text(bop.get("state")).upper()
