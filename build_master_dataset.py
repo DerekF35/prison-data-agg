@@ -113,6 +113,55 @@ SENTINEL_STRINGS = {
     "NOT APPLICABLE", "", "-1", "-1--1", "-1-", "0", "000-000-0000"
 }
 
+ACRONYMS = {
+    'USP', 'FCI', 'ADX', 'ADMAX', 'FDC', 'MDC', 'FMC', 'FPC', 'MCC', 'FCC', 'BOP', 'DOC', 
+    'USMS', 'ICE', 'DHS', 'DJJ', 'DOJ', 'SCI', 'SD', 'CCF', 'CF', 'ASPC', 'RRM', 
+    'RO', 'CI', 'MSTC', 'YDC', 'JDC', 'AJDC', 'CJCF', 'MCI', 'WSP', 'NER', 'SER', 'NCR', 
+    'SCR', 'WXR', 'MXR', 'HQ', 'II', 'III', 'IV', 'VI', 'NW', 'NE', 'SW', 'SE', 'US', 'USA', 'CCFW'
+}
+
+# Explicit FIPS and County Lookup for standalone BOP and territory installations
+STANDALONE_COUNTY_FIPS_MAP = {
+    "BOP-LOF": ("Santa Barbara", "06083"),
+    "BOP-LOM": ("Santa Barbara", "06083"),
+    "BOP-CSC": ("Sacramento", "06067"),
+    "BOP-CLB": ("Los Angeles", "06037"),
+    "BOP-WXR": ("San Joaquin", "06077"),
+    "BOP-DET": ("Arapahoe", "08005"),
+    "BOP-BOP": ("District of Columbia", "11001"),
+    "BOP-COX": ("Sumter", "12119"),
+    "BOP-COR": ("Sumter", "12119"),
+    "BOP-SER": ("Fulton", "13121"),
+    "BOP-GLN": ("Glynn", "13127"),
+    "BOP-CCH": ("DuPage", "17043"),
+    "BOP-NCR": ("Wyandotte", "20209"),
+    "BOP-CKC": ("Wyandotte", "20209"),
+    "BOP-MXR": ("Anne Arundel", "24003"),
+    "BOP-CBR": ("Baltimore City", "24510"),
+    "BOP-CDT": ("Washtenaw", "26161"),
+    "BOP-CMS": ("Hennepin", "27053"),
+    "BOP-CST": ("St. Louis City", "29510"),
+    "10006284": ("Saipan Municipality", "69110"),
+    "10006540": ("Guam", "66010"),
+    "10006165": ("Guam", "66010"),
+    "10006164": ("Guam", "66010"),
+    "10006539": ("Guam", "66010"),
+    "10006163": ("St. Croix Island", "78010"),
+    "10006166": ("St. Croix Island", "78010"),
+    "BOP-YAM": ("Yazoo", "28163"),
+    "BOP-CRL": ("Granville", "37077"),
+    "BOP-CCN": ("Hamilton", "39061"),
+    "BOP-ALX": ("Union", "42119"),
+    "BOP-NER": ("Philadelphia", "42101"),
+    "BOP-CPG": ("Allegheny", "42003"),
+    "BOP-CNV": ("Davidson", "47037"),
+    "BOP-GRA": ("Dallas", "48113"),
+    "BOP-SCR": ("Dallas", "48113"),
+    "BOP-CDA": ("Dallas", "48113"),
+    "BOP-CSA": ("Bexar", "48029"),
+    "BOP-CSE": ("King", "53033")
+}
+
 def clean_text(val):
     if val is None or pd.isna(val):
         return ""
@@ -157,7 +206,6 @@ def clean_phone(val):
         return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
     elif len(digits) == 11 and digits.startswith('1'):
         return f"({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
-    # If digits length is not a standard phone number, return empty if invalid
     if len(digits) < 7:
         return ""
     return text
@@ -191,18 +239,39 @@ def clean_coord(val, is_lat=True):
 def format_title(text):
     if not text:
         return ""
+    # Normalize spaces around hyphens and slashes
+    text = re.sub(r'\s*-\s*', ' - ', text)
+    text = re.sub(r'\s*/\s*', ' / ', text)
     words = text.split()
     formatted = []
-    acronyms = {"USP", "FCI", "ADX", "FDC", "MDC", "FMC", "FPC", "BOP", "DOC", "USMS", "ICE", "DHS", "SD", "II", "III", "IV", "VI", "NW", "NE", "SW", "SE", "US", "USA"}
     for w in words:
-        w_clean = re.sub(r'[^a-zA-Z0-9]', '', w).upper()
-        if w_clean in acronyms:
-            formatted.append(w.upper())
-        elif w.upper() in acronyms:
-            formatted.append(w.upper())
+        prefix, core, suffix = '', w, ''
+        m = re.match(r'^([\(\"\'\-\/]*)(.*?)([\)\"\'\-\/\,\.]*)$', w)
+        if m:
+            prefix, core, suffix = m.groups()
+        
+        core_upper = core.upper()
+        core_clean = re.sub(r'[^A-Za-z0-9]', '', core_upper)
+        
+        # Possessive check: e.g. Men's, Women's, Sheriff's
+        if core.lower().endswith("'s"):
+            base = core[:-2].capitalize()
+            core_formatted = f"{base}'s"
+        elif core_clean in ACRONYMS:
+            core_formatted = core_upper
+        elif core.lower() in ['and', 'of', 'for', 'in', 'at', 'on', 'to', 'the', 'de', 'la', 'del']:
+            core_formatted = core.lower()
         else:
-            formatted.append(w.capitalize())
-    return " ".join(formatted)
+            core_formatted = core.capitalize()
+            
+        formatted.append(f"{prefix}{core_formatted}{suffix}")
+        
+    res = ' '.join(formatted)
+    if res and res[0].islower():
+        res = res[0].upper() + res[1:]
+    res = re.sub(r'\s+-\s+', ' - ', res)
+    res = re.sub(r'\s+/\s+', ' / ', res)
+    return res
 
 # A. Consolidate HIFLD by unique FACILITYID
 hifld_dict = {}
@@ -237,7 +306,6 @@ for bop in bop_raw:
     bop_city = clean_text(bop.get("city")).upper()
     bop_type = clean_text(bop.get("type")).upper()
     
-    # Strictly match ONLY to Federal facilities or exact facility name matches
     matched_id = None
     for fac_id, (attrs, lat, lon) in hifld_dict.items():
         if clean_text(attrs.get("STATE")).upper() != bop_st:
@@ -272,7 +340,6 @@ for bop in bop_raw:
         enriched_hifld_count += 1
         attrs, lat, lon = hifld_dict[matched_id]
         
-        # Enrich federal metadata
         if not attrs.get("WEBSITE") or "bop.gov" not in str(attrs.get("WEBSITE")).lower():
             attrs["WEBSITE"] = f"https://www.bop.gov{bop.get('url')}" if bop.get("url") else "https://www.bop.gov"
         if bop.get("phoneNumber"):
@@ -282,7 +349,6 @@ for bop in bop_raw:
         if bop.get("gender") and attrs.get("GENDER") in ["NOT AVAILABLE", "", None]:
             attrs["GENDER"] = bop.get("gender").upper()
     else:
-        # Standalone BOP record (e.g. Administrative HQ, regional office, or distinct federal facility)
         standalone_bop_records.append(bop)
 
 print(f"[+] HIFLD records enriched with official BOP contact/URLs (collision-free): {enriched_hifld_count:,}")
@@ -299,7 +365,6 @@ for fac_id, (attrs, lat, lon) in hifld_dict.items():
     raw_sec = clean_text(attrs.get("SECURELVL")).upper()
     raw_status = clean_text(attrs.get("STATUS")).upper()
     
-    # Standardize operational status
     if raw_status in ["OPEN", "ACTIVE", "OPERATIONAL"]:
         status = "Open"
     elif raw_status in ["CLOSED", "INACTIVE", "DECOMMISSIONED"]:
@@ -307,7 +372,6 @@ for fac_id, (attrs, lat, lon) in hifld_dict.items():
     else:
         status = "Not Available" if not raw_status else raw_status.title()
 
-    # Standardize Jurisdiction
     if "FED" in raw_type or "FEDERAL" in raw_type or "BOP" in raw_name.upper():
         jurisdiction = "Federal"
     elif "STATE" in raw_type:
@@ -323,7 +387,6 @@ for fac_id, (attrs, lat, lon) in hifld_dict.items():
     else:
         jurisdiction = "Not Specified"
 
-    # Standardize Security Level
     if "MAX" in raw_sec:
         security_level = "Maximum"
     elif "CLOSE" in raw_sec:
@@ -341,7 +404,6 @@ for fac_id, (attrs, lat, lon) in hifld_dict.items():
     else:
         security_level = "Not Specified"
 
-    # Standardize Facility Classification
     name_upper = raw_name.upper()
     if "JUVENILE" in name_upper or "YOUTH" in name_upper or security_level == "Juvenile":
         facility_type = "Juvenile Detention / Residential"
@@ -365,6 +427,13 @@ for fac_id, (attrs, lat, lon) in hifld_dict.items():
     if not website.lower().startswith("http"):
         website = ""
 
+    county_val = format_title(clean_text(attrs.get("COUNTY")))
+    county_fips_val = clean_fips(attrs.get("COUNTYFIPS"), state=state)
+    
+    # Impute territory/missing county if in lookup
+    if fac_id in STANDALONE_COUNTY_FIPS_MAP:
+        county_val, county_fips_val = STANDALONE_COUNTY_FIPS_MAP[fac_id]
+
     rec = {
         "facility_id": fac_id,
         "facility_name": format_title(raw_name),
@@ -376,8 +445,8 @@ for fac_id, (attrs, lat, lon) in hifld_dict.items():
         "city": format_title(clean_text(attrs.get("CITY"))),
         "state": state,
         "zip_code": clean_zip(attrs.get("ZIP")),
-        "county": format_title(clean_text(attrs.get("COUNTY"))),
-        "county_fips": clean_fips(attrs.get("COUNTYFIPS"), state=state),
+        "county": county_val,
+        "county_fips": county_fips_val,
         "phone_number": phone,
         "website": website,
         "latitude": lat,
@@ -403,9 +472,12 @@ for bop in standalone_bop_records:
     bop_code = clean_text(bop.get("code")).upper()
     bop_url = "https://www.bop.gov" + bop.get("url") if bop.get("url") else "https://www.bop.gov"
     bop_st = clean_text(bop.get("state")).upper()
+    
+    fac_id_key = f"BOP-{bop_code}" if bop_code else f"BOP-{len(master_records)}"
+    county_val, county_fips_val = STANDALONE_COUNTY_FIPS_MAP.get(fac_id_key, ("", ""))
 
     rec = {
-        "facility_id": f"BOP-{bop_code}" if bop_code else f"BOP-{len(master_records)}",
+        "facility_id": fac_id_key,
         "facility_name": format_title(bop_name),
         "jurisdiction": "Federal",
         "facility_type": format_title(bop_type_desc) if bop_type_desc else "Federal Bureau of Prisons (BOP)",
@@ -415,8 +487,8 @@ for bop in standalone_bop_records:
         "city": format_title(clean_text(bop.get("city"))),
         "state": bop_st,
         "zip_code": clean_zip(bop.get("zipCode")),
-        "county": "",
-        "county_fips": "",
+        "county": county_val,
+        "county_fips": county_fips_val,
         "phone_number": clean_phone(bop.get("phoneNumber")),
         "website": bop_url,
         "latitude": lat,
@@ -461,7 +533,6 @@ ws1 = wb.active
 ws1.title = "Master Facilities Directory"
 ws1.views.sheetView[0].showGridLines = True
 
-# Formatting definitions
 font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
 fill_header = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
 fill_zebra = PatternFill(start_color="F2F5F9", end_color="F2F5F9", fill_type="solid")
@@ -518,7 +589,6 @@ for row_idx, r in enumerate(records_dict, start=2):
         if pd.isna(val) or val is None:
             cell.value = ""
         else:
-            # Cast integer objects
             if field in ['design_capacity', 'population']:
                 cell.value = int(val)
             else:
@@ -658,7 +728,7 @@ dict_entries = [
     ("operational_status", "Current operational status: Open, Closed, or Not Available."),
     ("street_address", "Standardized physical street address of the facility."),
     ("city", "City where the facility is physically located."),
-    ("state", "Two-letter US postal state / territory abbreviation (all 50 states, DC, PR, GU, VI)."),
+    ("state", "Two-letter US postal state / territory abbreviation (all 50 states, DC, PR, GU, VI, MP)."),
     ("zip_code", "5-digit or 9-digit postal ZIP code."),
     ("county", "County or parish name."),
     ("county_fips", "5-digit Federal Information Processing Standard (FIPS) county code."),
