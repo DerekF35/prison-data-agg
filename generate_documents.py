@@ -1,401 +1,324 @@
 #!/usr/bin/env python3
 """
-Generates high-quality Word (.docx) and PDF (.pdf) documents for the
-US Correctional Facilities Master Dataset Methodology Report.
+Publication-Grade Document Generator for US Correctional Facilities Aggregator
+Converts the full methodology report and data dictionary into styled Word (.docx)
+and PDF (.pdf) documents, and bundles all output deliverables into prison_data_report.zip.
 """
 
 import os
 import sys
+import subprocess
+import zipfile
+from datetime import datetime
 import docx
+from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml import parse_xml, OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
-import subprocess
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-DOCX_OUT = os.path.join(OUTPUT_DIR, "US_Correctional_Facilities_Methodology_Report.docx")
-PDF_OUT = os.path.join(OUTPUT_DIR, "US_Correctional_Facilities_Methodology_Report.pdf")
-
-doc = docx.Document()
-
-# Set standard 1-inch margins
-for section in doc.sections:
-    section.top_margin = Inches(1.0)
-    section.bottom_margin = Inches(1.0)
-    section.left_margin = Inches(1.0)
-    section.right_margin = Inches(1.0)
-    # Add page number in footer
-    footer = section.footer
-    f_p = footer.paragraphs[0]
-    f_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    f_run = f_p.add_run("US Correctional Facilities Master Dataset • Page ")
-    f_run.font.name = "Calibri"
-    f_run.font.size = Pt(9)
-    f_run.font.color.rgb = RGBColor(128, 128, 128)
-
-# Colors
-PRIMARY_NAVY = RGBColor(31, 78, 120)     # #1F4E78
-SECONDARY_BLUE = RGBColor(46, 117, 182)  # #2E75B6
-DARK_GRAY = RGBColor(51, 51, 51)         # #333333
-LIGHT_BG_HEX = "F2F5F9"
-NAVY_BG_HEX = "1F4E78"
-BORDER_HEX = "D9D9D9"
+DOCX_FILE = os.path.join(OUTPUT_DIR, "US_Correctional_Facilities_Methodology_Report.docx")
+PDF_FILE = os.path.join(OUTPUT_DIR, "US_Correctional_Facilities_Methodology_Report.pdf")
+ZIP_FILE = os.path.join(OUTPUT_DIR, "prison_data_report.zip")
 
 def set_cell_background(cell, fill_hex):
     tcPr = cell._element.get_or_add_tcPr()
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
     tcPr.append(shd)
 
-def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+def set_cell_margins(cell, top=120, bottom=120, left=150, right=150):
     tcPr = cell._element.get_or_add_tcPr()
-    tcMar = parse_xml(f'''
-        <w:tcMar {nsdecls("w")}>
-            <w:top w:w="{top}" w:type="dxa"/>
-            <w:bottom w:w="{bottom}" w:type="dxa"/>
-            <w:left w:w="{left}" w:type="dxa"/>
-            <w:right w:w="{right}" w:type="dxa"/>
-        </w:tcMar>
-    ''')
+    tcMar = OxmlElement('w:tcMar')
+    for m, val in [('top', top), ('bottom', bottom), ('left', left), ('right', right)]:
+        node = OxmlElement(f'w:{m}')
+        node.set(qn('w:w'), str(val))
+        node.set(qn('w:type'), 'dxa')
+        tcMar.append(node)
     tcPr.append(tcMar)
 
-def set_table_borders(table):
-    tblPr = table._element.xpath('w:tblPr')
-    if tblPr:
-        borders = parse_xml(f'''
-            <w:tblBorders {nsdecls("w")}>
-                <w:top w:val="single" w:sz="4" w:space="0" w:color="{BORDER_HEX}"/>
-                <w:bottom w:val="single" w:sz="4" w:space="0" w:color="{BORDER_HEX}"/>
-                <w:left w:val="none"/>
-                <w:right w:val="none"/>
-                <w:insideH w:val="single" w:sz="4" w:space="0" w:color="{BORDER_HEX}"/>
-                <w:insideV w:val="none"/>
-            </w:tblBorders>
-        ''')
-        tblPr[0].append(borders)
-
-# --- Title Header ---
-title_p = doc.add_paragraph()
-title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-title_p.paragraph_format.space_before = Pt(0)
-title_p.paragraph_format.space_after = Pt(4)
-title_run = title_p.add_run("US Correctional Facilities Master Dataset")
-title_run.font.name = "Calibri"
-title_run.font.size = Pt(24)
-title_run.font.bold = True
-title_run.font.color.rgb = PRIMARY_NAVY
-
-sub_p = doc.add_paragraph()
-sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-sub_p.paragraph_format.space_before = Pt(0)
-sub_p.paragraph_format.space_after = Pt(18)
-sub_run = sub_p.add_run("Comprehensive Technical Documentation & Methodology Report")
-sub_run.font.name = "Calibri"
-sub_run.font.size = Pt(13)
-sub_run.font.italic = True
-sub_run.font.color.rgb = SECONDARY_BLUE
-
-# --- Callout Box: Executive Overview ---
-overview_table = doc.add_table(rows=1, cols=1)
-overview_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-overview_table.autofit = False
-overview_cell = overview_table.cell(0, 0)
-overview_cell.width = Inches(6.5)
-set_cell_background(overview_cell, "F2F5F9")
-set_cell_margins(overview_cell, top=140, bottom=140, left=200, right=200)
-
-box_p = overview_cell.paragraphs[0]
-box_p.paragraph_format.space_before = Pt(0)
-box_p.paragraph_format.space_after = Pt(4)
-b_title = box_p.add_run("EXECUTIVE SUMMARY & KEY DATASET METRICS\n")
-b_title.font.bold = True
-b_title.font.size = Pt(11)
-b_title.font.color.rgb = PRIMARY_NAVY
-
-metrics_text = (
-    "• Total Master Facilities: 6,768 unique institutions nationwide\n"
-    "• Geographic Coverage: 55 States & Territories (All 50 states + DC, PR, GU, VI, MP)\n"
-    "• GPS Coordinates Completeness: 100.0% (6,768 / 6,768 facilities validated in WGS84)\n"
-    "• Physical Street Addresses: 100.0% (6,765 verified street addresses)\n"
-    "• Direct Contact Phone Numbers: 6,229 facilities\n"
-    "• Total Reported Design Bed Capacity: 2,411,708 beds\n"
-    "• Total Reported Inmate Population: 2,069,547 inmates"
-)
-b_body = box_p.add_run(metrics_text)
-b_body.font.size = Pt(10)
-b_body.font.color.rgb = DARK_GRAY
-
-doc.add_paragraph().paragraph_format.space_after = Pt(12)
-
-# Helper: Section Header
-def add_heading_1(text):
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(18)
-    p.paragraph_format.space_after = Pt(6)
-    p.paragraph_format.keep_with_next = True
-    run = p.add_run(text)
-    run.font.name = "Calibri"
-    run.font.size = Pt(15)
-    run.font.bold = True
-    run.font.color.rgb = PRIMARY_NAVY
-    return p
-
-def add_heading_2(text):
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(12)
-    p.paragraph_format.space_after = Pt(4)
-    p.paragraph_format.keep_with_next = True
-    run = p.add_run(text)
-    run.font.name = "Calibri"
-    run.font.size = Pt(12)
-    run.font.bold = True
-    run.font.color.rgb = SECONDARY_BLUE
-    return p
-
-def add_body_p(text):
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.space_after = Pt(6)
-    p.paragraph_format.line_spacing = 1.15
-    run = p.add_run(text)
-    run.font.name = "Calibri"
-    run.font.size = Pt(10)
-    run.font.color.rgb = DARK_GRAY
-    return p
-
-# Section 1
-add_heading_1("1. Research Context & Data Provenance")
-add_body_p(
-    "The United States correctional infrastructure is decentralized across federal, state, county, "
-    "municipal, tribal, and private jurisdictions. No single governmental agency maintains a real-time, unified master registry "
-    "of all facilities. To build this comprehensive national database, data was acquired and synthesized from two authoritative federal sources:"
-)
-add_body_p(
-    "1. Homeland Infrastructure Foundation-Level Data (HIFLD) – Prison Facilities Layer (DHS / FEMA / Oak Ridge National Laboratory):\n"
-    "   Provides critical infrastructure geospatial baseline data for secure detention facilities across all 50 states, DC, and territories."
-)
-add_body_p(
-    "2. Federal Bureau of Prisons (BOP) Official Public Institution Directory (U.S. Department of Justice):\n"
-    "   Provides authoritative live operational records for all Federal Correctional Complexes (FCC), US Penitentiaries (USP), "
-    "Federal Correctional Institutions (FCI), Federal Prison Camps (FPC), Detention Centers (FDC/MDC), and Reentry Offices (RRM)."
-)
-
-# Section 2: Table of Jurisdictions
-add_heading_1("2. Jurisdictional Breakdown & Summary")
-add_body_p("The dataset captures 6,768 facilities across six jurisdictional authorities:")
-
-jur_table_data = [
-    ["Jurisdiction", "Facility Count", "Design Bed Capacity", "Reported Population", "Primary Facility Classifications"],
-    ["County / Local", "3,924", "777,361", "608,074", "County Jails, Adult Detention Centers, Juvenile Facilities"],
-    ["State", "2,347", "1,364,812", "1,223,733", "State Prisons, Correctional Institutions, Re-entry Centers"],
-    ["Federal", "253", "186,134", "165,862", "Federal Bureau of Prisons (USP, FCI, FPC, FDC, MDC, FMC, RRM)"],
-    ["Municipal / Local", "182", "38,490", "32,841", "City Jails, Municipal Holding Facilities"],
-    ["Multi-Jurisdiction", "35", "16,985", "15,221", "Regional Jail Authorities, Joint County Compacts"],
-    ["Private / Contract", "27", "27,926", "23,816", "Contracted Detention Facilities"],
-    ["Total", "6,768", "2,411,708", "2,069,547", "Nationwide Master Total"]
-]
-
-jur_table = doc.add_table(rows=len(jur_table_data), cols=5)
-jur_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-set_table_borders(jur_table)
-
-col_widths = [Inches(1.3), Inches(0.9), Inches(1.1), Inches(1.1), Inches(2.1)]
-
-for r_idx, row_data in enumerate(jur_table_data):
-    row = jur_table.rows[r_idx]
-    is_header = (r_idx == 0)
-    is_total = (r_idx == len(jur_table_data) - 1)
-    for c_idx, cell_value in enumerate(row_data):
-        cell = row.cells[c_idx]
-        cell.width = col_widths[c_idx]
-        set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
-        p = cell.paragraphs[0]
-        p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(0)
-        
-        # Alignment
-        if c_idx in [1, 2, 3]:
-            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        else:
-            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            
-        run = p.add_run(cell_value)
-        run.font.name = "Calibri"
-        run.font.size = Pt(9.5)
-        
-        if is_header:
-            set_cell_background(cell, NAVY_BG_HEX)
-            run.font.bold = True
-            run.font.color.rgb = RGBColor(255, 255, 255)
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        elif is_total:
-            set_cell_background(cell, "EAECEF")
-            run.font.bold = True
-        elif r_idx % 2 == 1:
-            set_cell_background(cell, LIGHT_BG_HEX)
-
-doc.add_paragraph().paragraph_format.space_after = Pt(10)
-
-# Section 3
-add_heading_1("3. Ingestion, Cleaning & Entity Resolution Methodology")
-
-add_heading_2("A. Ingestion & API Pagination")
-add_body_p(
-    "Data was extracted from the DHS HIFLD ArcGIS FeatureServer using programmatic HTTP pagination with parameters "
-    "resultOffset and resultRecordCount=2000 in WGS84 spatial reference (outSR=4326). This bypassed server transfer limits "
-    "and ensured 100% feature capture. Raw responses were cached deterministically to guarantee reproducibility."
-)
-
-add_heading_2("B. Deduplication of Spatial Multi-Part Features")
-add_body_p(
-    "ArcGIS layers frequently represent multi-building complexes or split campus parcels as separate polygon geometries, "
-    "resulting in duplicate attribute entries. The raw HIFLD layer contained 10,738 entries representing exactly 6,737 unique physical facilities. "
-    "The pipeline indexed facilities strictly by unique FACILITYID, retaining the primary feature with verified coordinates."
-)
-
-add_heading_2("C. Collision-Free Entity Matching")
-add_body_p(
-    "To integrate live Federal BOP directory records with the HIFLD baseline without corrupting local municipal entities, "
-    "a strict entity resolution algorithm was enforced:\n"
-    "• Federal BOP codes (e.g. BOP-MAR, BOP-THA) and exact institution titles were matched directly.\n"
-    "• Substring matching was strictly restricted to facilities classified as Federal or containing federal institution markers (USP, FCI, FDC, MDC, FMC).\n"
-    "• This prevented false collisions where short federal institution names would otherwise overwrite local county jails in the same municipality (e.g. USP Marion vs Marion County Jail in Illinois)."
-)
-
-add_heading_2("D. Data Sanitization & Formatting Rules")
-add_body_p(
-    "• Sentinel Values: Purged legacy placeholder strings ('-999', '9999', 'NOT AVAILABLE', '-1--1') into clean null values.\n"
-    "• Title Casing & Acronym Preservation: Standardized names to Title Case while whitelisting uppercase federal acronyms (USP, FCI, ADX, FDC, MDC, FMC, BOP, DOC, USMS, ICE).\n"
-    "• Postal ZIP & FIPS Formatting: Preserved leading zeroes for East Coast states and territories (e.g. '01862' for MA, '00921' for PR). Corrected upstream Pickens County Alabama FIPS typo (10107 -> 01107).\n"
-    "• Discrete Integer Representation: Capacities and populations are serialized as clean nullable integers without float decimals."
-)
-
-# Section 4: Top States Table
-add_heading_1("4. Geographic Distribution (Top 10 States)")
-
-state_table_data = [
-    ["Rank", "State / Territory", "Facility Count", "Reported Capacity", "State DOC", "County Jails", "Federal"],
-    ["1", "Texas (TX)", "555", "311,736", "136", "361", "36"],
-    ["2", "Florida (FL)", "417", "178,382", "286", "103", "14"],
-    ["3", "California (CA)", "413", "215,306", "101", "267", "26"],
-    ["4", "Georgia (GA)", "324", "116,652", "88", "199", "12"],
-    ["5", "Ohio (OH)", "237", "76,408", "40", "154", "7"],
-    ["6", "New York (NY)", "232", "89,792", "68", "99", "12"],
-    ["7", "North Carolina (NC)", "227", "58,671", "67", "131", "9"],
-    ["8", "Missouri (MO)", "199", "50,460", "31", "138", "7"],
-    ["9", "Virginia (VA)", "192", "57,230", "48", "101", "13"],
-    ["10", "Illinois (IL)", "187", "68,284", "45", "109", "8"]
-]
-
-state_table = doc.add_table(rows=len(state_table_data), cols=7)
-state_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-set_table_borders(state_table)
-
-col_w_state = [Inches(0.6), Inches(1.4), Inches(1.0), Inches(1.2), Inches(0.8), Inches(0.8), Inches(0.7)]
-
-for r_idx, row_data in enumerate(state_table_data):
-    row = state_table.rows[r_idx]
-    is_header = (r_idx == 0)
-    for c_idx, cell_value in enumerate(row_data):
-        cell = row.cells[c_idx]
-        cell.width = col_w_state[c_idx]
-        set_cell_margins(cell, top=70, bottom=70, left=80, right=80)
-        p = cell.paragraphs[0]
-        p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(0)
-        
-        if c_idx in [0, 2, 3, 4, 5, 6]:
-            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        else:
-            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            
-        run = p.add_run(cell_value)
-        run.font.name = "Calibri"
-        run.font.size = Pt(9)
-        
-        if is_header:
-            set_cell_background(cell, NAVY_BG_HEX)
-            run.font.bold = True
-            run.font.color.rgb = RGBColor(255, 255, 255)
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        elif r_idx % 2 == 1:
-            set_cell_background(cell, LIGHT_BG_HEX)
-
-doc.add_paragraph().paragraph_format.space_after = Pt(10)
-
-# Section 5: Data Dictionary Table
-add_heading_1("5. Schema & Field Reference")
-
-dict_table_data = [
-    ["Column Name", "Type", "Example", "Description"],
-    ["facility_id", "String", "10002798", "Primary unique alphanumeric facility identifier (HIFLD ID / BOP Code)."],
-    ["facility_name", "String", "Midland Co Central Det", "Official standardized title-cased facility name."],
-    ["jurisdiction", "String", "County / Local", "Authority level: Federal, State, County/Local, Municipal, Private."],
-    ["facility_type", "String", "County / Local Jail", "Operational classification (State/Federal Prison, Jail, Juvenile, etc.)."],
-    ["security_level", "String", "Maximum", "Security level (Maximum, Close, Medium, Minimum, Juvenile, Admin)."],
-    ["operational_status", "String", "Open", "Operational status: Open, Closed, Not Available."],
-    ["street_address", "String", "400 S Main St", "Physical street address of the facility."],
-    ["city", "String", "Midland", "City where the facility is located."],
-    ["state", "String", "TX", "Two-letter US postal state/territory abbreviation (55 total)."],
-    ["zip_code", "String", "79701", "5-digit or 9-digit postal ZIP code (leading zeroes preserved)."],
-    ["county", "String", "Midland", "County or parish name."],
-    ["county_fips", "String", "48329", "5-digit Federal Information Processing Standard county code."],
-    ["phone_number", "String", "(432) 688-4745", "Standardized 10-digit telephone contact number."],
-    ["website", "String", "https://...", "Official facility or department portal URL."],
-    ["latitude", "Float", "31.993959", "WGS84 Decimal Degrees Latitude (North)."],
-    ["longitude", "Float", "-102.075419", "WGS84 Decimal Degrees Longitude (West)."],
-    ["design_capacity", "Integer", "498", "Official rated or design bed capacity."],
-    ["population", "Integer", "438", "Reported inmate population count."],
-    ["gender", "String", "Male / Female", "Inmate gender housing designation."],
-    ["data_source", "String", "DHS HIFLD", "Origin agency of baseline record."]
-]
-
-dict_table = doc.add_table(rows=len(dict_table_data), cols=4)
-dict_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-set_table_borders(dict_table)
-
-col_w_dict = [Inches(1.4), Inches(0.7), Inches(1.3), Inches(3.1)]
-
-for r_idx, row_data in enumerate(dict_table_data):
-    row = dict_table.rows[r_idx]
-    is_header = (r_idx == 0)
-    for c_idx, cell_value in enumerate(row_data):
-        cell = row.cells[c_idx]
-        cell.width = col_w_dict[c_idx]
-        set_cell_margins(cell, top=60, bottom=60, left=80, right=80)
-        p = cell.paragraphs[0]
-        p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(0)
-        
-        run = p.add_run(cell_value)
-        run.font.name = "Calibri"
-        run.font.size = Pt(8.5)
-        
-        if is_header:
-            set_cell_background(cell, "333F48")
-            run.font.bold = True
-            run.font.color.rgb = RGBColor(255, 255, 255)
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        elif r_idx % 2 == 1:
-            set_cell_background(cell, LIGHT_BG_HEX)
-
-# Save Word document
-doc.save(DOCX_OUT)
-print(f"[+] Successfully generated Word document: {DOCX_OUT} ({os.path.getsize(DOCX_OUT):,} bytes)")
-
-# Convert to PDF via LibreOffice headless
-print("[*] Converting Word document to PDF using LibreOffice headless...")
-try:
-    cmd = [
-        "libreoffice", "--headless", "--convert-to", "pdf",
-        DOCX_OUT, "--outdir", OUTPUT_DIR
+def create_zip_archive():
+    files_to_zip = [
+        "us_correctional_facilities_master.csv",
+        "us_correctional_facilities_master.xlsx",
+        "US_Correctional_Facilities_Methodology_Report.pdf",
+        "US_Correctional_Facilities_Methodology_Report.docx",
+        "dataset_summary.json"
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if os.path.exists(PDF_OUT):
-        print(f"[+] Successfully generated PDF document: {PDF_OUT} ({os.path.getsize(PDF_OUT):,} bytes)")
+    print(f"[*] Packaging deliverables into {ZIP_FILE}...")
+    with zipfile.ZipFile(ZIP_FILE, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname in files_to_zip:
+            fpath = os.path.join(OUTPUT_DIR, fname)
+            if os.path.exists(fpath):
+                zf.write(fpath, arcname=fname)
+                print(f"     + Added {fname} ({os.path.getsize(fpath):,} bytes)")
+            else:
+                print(f"     ! Warning: {fname} missing from output folder")
+    print(f"[+] Successfully generated output archive: {ZIP_FILE} ({os.path.getsize(ZIP_FILE):,} bytes)")
+
+def create_methodology_document():
+    doc = Document()
+
+    # Set page margins
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Inches(0.8)
+        section.bottom_margin = Inches(0.8)
+        section.left_margin = Inches(0.8)
+        section.right_margin = Inches(0.8)
+
+    # 1. Document Title
+    title_p = doc.add_paragraph()
+    title_p.paragraph_format.space_before = Pt(0)
+    title_p.paragraph_format.space_after = Pt(4)
+    run_title = title_p.add_run("UNITED STATES CORRECTIONAL FACILITIES MASTER DATABASE")
+    run_title.font.name = "Calibri"
+    run_title.font.size = Pt(20)
+    run_title.font.bold = True
+    run_title.font.color.rgb = RGBColor(0x1F, 0x4E, 0x78)
+
+    # Subtitle
+    sub_p = doc.add_paragraph()
+    sub_p.paragraph_format.space_after = Pt(14)
+    run_sub = sub_p.add_run("Comprehensive Ingestion, Normalization, Deduplication, and Validation Methodology Report")
+    run_sub.font.name = "Calibri"
+    run_sub.font.size = Pt(13)
+    run_sub.font.italic = True
+    run_sub.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+
+    # Metadata Box
+    meta_p = doc.add_paragraph()
+    meta_p.paragraph_format.space_after = Pt(16)
+    meta_run = meta_p.add_run(
+        f"Publication Date: {datetime.now().strftime('%B %d, %Y')}  |  "
+        "Coverage: All 50 States, DC, PR, GU, VI, MP (6,768 Facilities)  |  "
+        "Version: 2.0 (Audited)"
+    )
+    meta_run.font.name = "Calibri"
+    meta_run.font.size = Pt(9.5)
+    meta_run.font.bold = True
+    meta_run.font.color.rgb = RGBColor(0x20, 0x37, 0x64)
+
+    # Divider
+    p_div = doc.add_paragraph()
+    p_div.paragraph_format.space_after = Pt(12)
+    p_div_run = p_div.add_run("―" * 65)
+    p_div_run.font.color.rgb = RGBColor(0xD9, 0xD9, 0xD9)
+
+    def add_heading_1(text):
+        h = doc.add_paragraph()
+        h.paragraph_format.space_before = Pt(14)
+        h.paragraph_format.space_after = Pt(6)
+        r = h.add_run(text)
+        r.font.name = "Calibri"
+        r.font.size = Pt(14)
+        r.font.bold = True
+        r.font.color.rgb = RGBColor(0x1F, 0x4E, 0x78)
+        return h
+
+    def add_heading_2(text):
+        h = doc.add_paragraph()
+        h.paragraph_format.space_before = Pt(10)
+        h.paragraph_format.space_after = Pt(4)
+        r = h.add_run(text)
+        r.font.name = "Calibri"
+        r.font.size = Pt(12)
+        r.font.bold = True
+        r.font.color.rgb = RGBColor(0x2E, 0x75, 0xB6)
+        return h
+
+    def add_body(text):
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        p.paragraph_format.line_spacing = 1.15
+        r = p.add_run(text)
+        r.font.name = "Calibri"
+        r.font.size = Pt(10.5)
+        r.font.color.rgb = RGBColor(0x26, 0x26, 0x26)
+        return p
+
+    def add_bullet(bold_prefix, text):
+        p = doc.add_paragraph(style='List Bullet')
+        p.paragraph_format.space_after = Pt(3)
+        p.paragraph_format.line_spacing = 1.15
+        r_bold = p.add_run(bold_prefix)
+        r_bold.font.name = "Calibri"
+        r_bold.font.size = Pt(10)
+        r_bold.font.bold = True
+        r_text = p.add_run(text)
+        r_text.font.name = "Calibri"
+        r_text.font.size = Pt(10)
+        return p
+
+    # --- 1. Executive Summary ---
+    add_heading_1("1. Executive Summary")
+    add_body(
+        "This methodology report establishes the technical architecture, data provenance, cleaning rules, "
+        "and deduplication logic utilized to build the United States Correctional Facilities Master Database. "
+        "The resulting master dataset provides researchers, government agencies, and policy analysts with a unified, "
+        "standardized repository of 6,768 physical correctional institutions operating across all 50 US states, "
+        "the District of Columbia, and five US territories (Puerto Rico, Guam, US Virgin Islands, and Northern Mariana Islands)."
+    )
+
+    # Summary Metrics Table
+    table_metrics = doc.add_table(rows=6, cols=3)
+    table_metrics.alignment = WD_TABLE_ALIGNMENT.CENTER
+    metrics_data = [
+        ("Metric Description", "Aggregated Total", "Completeness / Verification"),
+        ("Total Unique Facilities", "6,768", "100.0% Unique Primary IDs"),
+        ("Facilities with Valid GPS Coordinates", "6,768", "100.0% Geocoded (WGS84)"),
+        ("Total Rated Bed Capacity (Design)", "2,411,708 beds", "Official Agency Rated Counts"),
+        ("Total Reported Inmate Population", "2,069,547 inmates", "Point-in-Time Census Data"),
+        ("Geographic Jurisdictions Covered", "55 Jurisdictions", "50 States + DC + PR, GU, VI, MP")
+    ]
+    for r_idx, row in enumerate(table_metrics.rows):
+        is_hdr = (r_idx == 0)
+        for c_idx, cell in enumerate(row.cells):
+            set_cell_margins(cell, top=100, bottom=100, left=120, right=120)
+            set_cell_background(cell, "1F4E78" if is_hdr else ("F2F5F9" if r_idx % 2 == 1 else "FFFFFF"))
+            p = cell.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT if c_idx == 0 else WD_ALIGN_PARAGRAPH.RIGHT
+            run = p.add_run(metrics_data[r_idx][c_idx])
+            run.font.name = "Calibri"
+            run.font.size = Pt(9.5)
+            if is_hdr:
+                run.font.bold = True
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+            else:
+                run.font.color.rgb = RGBColor(0x26, 0x26, 0x26)
+
+    # --- 2. Primary Data Sources & Provenance ---
+    add_heading_1("2. Data Sources & Ingestion Architecture")
+    add_body(
+        "To ensure comprehensive coverage across federal, state, county, and private correctional operations, "
+        "the aggregation pipeline programmatically queries primary government data repositories:"
+    )
+    add_bullet("1. DHS Homeland Infrastructure Foundation-Level Data (HIFLD): ", 
+               "Direct REST query against the national Critical Infrastructure Prison Points FeatureServer layer "
+               "(services4.arcgis.com). Ingests 10,738 raw polygon/point features representing all cataloged federal, state, and county facilities.")
+    add_bullet("2. DOJ Federal Bureau of Prisons (BOP) National Directory: ",
+               "Ingests live structured metadata from the official BOP facility management endpoint (bop.gov/PublicInfo), "
+               "providing official contact numbers, security classifications, direct institution URLs, and regional administrative command centers.")
+
+    # --- 3. Normalization, Deduplication & Entity Matching ---
+    add_heading_1("3. Cleaning, Normalization & Deduplication Methodology")
+    add_body(
+        "Raw government correctional datasets contain significant fragmentation, duplicate multi-part GIS records, "
+        "and sentinel placeholders. The pipeline enforces rigorous cleaning and enrichment algorithms:"
+    )
+    add_bullet("Multi-Part Feature Deduplication: ",
+               "HIFLD polygon boundaries frequently export multiple geometry centroids for a single campus, resulting in 4,000 "
+               "redundant rows. The pipeline consolidates records strictly by unique FACILITYID while preserving valid geospatial coordinates.")
+    add_bullet("Type-Guarded BOP Entity Matching: ",
+               "To prevent false-positive collisions where short 3-letter BOP codes (e.g. 'LOS' or 'FOR') match county jail names "
+               "(e.g. Los Angeles County Sybil Brand Institute), the pipeline requires an explicit Federal/Multi-jurisdiction type check before applying abbreviation matching.")
+    add_bullet("Preservation of Zero-Population Data: ",
+               "Valid zero-population counts for brand-new, temporarily unpopulated, or specialized intake facilities are retained as 0, "
+               "while negative sentinels (-999, -1, 99999) are scrubbed to null.")
+    add_bullet("Smart Typography & Acronym Normalization: ",
+               "Addresses, cities, and facility names are standardized to Title Case while strictly preserving uppercase acronyms "
+               "(USP, FCI, ADX, MDC, FDC, FMC, BOP, DOC, SCI, ASPC, CCFW) and Scottish/Irish prefixes (McDuffie, McCreary, McKean, O'Brien).")
+    add_bullet("FIPS & Geographic Imputations: ",
+               "Corrects upstream FIPS typos (e.g. Pickens County AL '10107' -> '01107') and provides complete county FIPS mapping for "
+               "standalone federal facilities and territories (Guam FIPS 66010, US Virgin Islands FIPS 78010, Saipan FIPS 69110).")
+
+    # --- 4. Breakdown by Jurisdiction ---
+    add_heading_1("4. Master Directory Distribution by Jurisdiction")
+    add_body("The master dataset categorizes facilities into six standardized governmental authority tiers:")
+
+    table_jur = doc.add_table(rows=7, cols=3)
+    table_jur.alignment = WD_TABLE_ALIGNMENT.CENTER
+    jur_data = [
+        ("Jurisdiction Level", "Facility Count", "Percentage of Dataset"),
+        ("County / Local Jails", "3,960", "58.5%"),
+        ("State DOC Facilities", "2,273", "33.6%"),
+        ("Federal (BOP & USMS)", "288", "4.3%"),
+        ("Municipal / City Lockups", "184", "2.7%"),
+        ("Multi-Jurisdiction Facilities", "36", "0.5%"),
+        ("Not Specified (Tribal / Contract / Unrecorded)", "27", "0.4%")
+    ]
+    for r_idx, row in enumerate(table_jur.rows):
+        is_hdr = (r_idx == 0)
+        for c_idx, cell in enumerate(row.cells):
+            set_cell_margins(cell, top=100, bottom=100, left=120, right=120)
+            set_cell_background(cell, "2E75B6" if is_hdr else ("F2F5F9" if r_idx % 2 == 1 else "FFFFFF"))
+            p = cell.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT if c_idx == 0 else WD_ALIGN_PARAGRAPH.RIGHT
+            run = p.add_run(jur_data[r_idx][c_idx])
+            run.font.name = "Calibri"
+            run.font.size = Pt(9.5)
+            if is_hdr:
+                run.font.bold = True
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+            else:
+                run.font.color.rgb = RGBColor(0x26, 0x26, 0x26)
+
+    # --- 5. Data Dictionary ---
+    add_heading_1("5. Standardized Data Dictionary (20 Master Fields)")
+    add_body(
+        "Both the master CSV and Excel spreadsheets feature 20 fully standardized columns. "
+        "The table below defines each programmatic field name and its corresponding Excel column header:"
+    )
+
+    dict_rows = [
+        ("Display Column Header", "CSV Field (snake_case)", "Description & Type"),
+        ("Facility ID", "facility_id", "String: Unique primary identifier (HIFLD ID or BOP Code)."),
+        ("Facility Name", "facility_name", "String: Standardized institution title case name."),
+        ("Jurisdiction", "jurisdiction", "String: Level of authority (Federal, State, County, etc.)."),
+        ("Facility Classification", "facility_type", "String: Prison, Jail, Juvenile, Medical/Psych, Reentry."),
+        ("Security Level", "security_level", "String: Maximum, Close, Medium, Minimum, Administrative."),
+        ("Operational Status", "operational_status", "String: Open, Closed, or Not Available."),
+        ("Street Address", "street_address", "String: Physical street address of facility."),
+        ("City", "city", "String: City or municipality."),
+        ("State", "state", "String: 2-letter postal code (50 states + 5 territories)."),
+        ("ZIP Code", "zip_code", "String: 5-digit ZIP code with preserved leading zeros."),
+        ("County", "county", "String: County, parish, or borough name."),
+        ("County FIPS", "county_fips", "String: 5-digit FIPS code with preserved leading zeros."),
+        ("Phone Number", "phone_number", "String: Standardized (XXX) XXX-XXXX phone number."),
+        ("Website", "website", "String: Official governing portal or institution URL."),
+        ("Latitude", "latitude", "Float: WGS84 Decimal Degrees Latitude (North)."),
+        ("Longitude", "longitude", "Float: WGS84 Decimal Degrees Longitude (West/East)."),
+        ("Design Capacity", "design_capacity", "Integer: Official rated design bed count."),
+        ("Population", "population", "Integer: Reported inmate population count."),
+        ("Gender", "gender", "String: Male, Female, Co-ed, or Not Specified."),
+        ("Data Source", "data_source", "String: Primary origin source agency.")
+    ]
+
+    table_dict = doc.add_table(rows=len(dict_rows), cols=3)
+    table_dict.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for r_idx, row in enumerate(table_dict.rows):
+        is_hdr = (r_idx == 0)
+        for c_idx, cell in enumerate(row.cells):
+            set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
+            set_cell_background(cell, "333F48" if is_hdr else ("F2F5F9" if r_idx % 2 == 1 else "FFFFFF"))
+            p = cell.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            run = p.add_run(dict_rows[r_idx][c_idx])
+            run.font.name = "Calibri"
+            run.font.size = Pt(8.5)
+            if is_hdr:
+                run.font.bold = True
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+            else:
+                run.font.color.rgb = RGBColor(0x26, 0x26, 0x26)
+
+    # Save Word Document
+    doc.save(DOCX_FILE)
+    print(f"[+] Successfully generated Word document: {DOCX_FILE} ({os.path.getsize(DOCX_FILE):,} bytes)")
+
+    # Convert to PDF via LibreOffice
+    print(f"[*] Converting Word document to PDF using LibreOffice headless...")
+    cmd = ["libreoffice", "--headless", "--convert-to", "pdf", DOCX_FILE, "--outdir", OUTPUT_DIR]
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if res.returncode == 0 and os.path.exists(PDF_FILE):
+        print(f"[+] Successfully generated PDF document: {PDF_FILE} ({os.path.getsize(PDF_FILE):,} bytes)")
     else:
-        print(f"[-] PDF conversion completed but file not found at {PDF_OUT}")
-except Exception as e:
-    print(f"[-] LibreOffice PDF conversion error: {e}")
+        print(f"[-] LibreOffice PDF conversion failed: {res.stderr.decode('utf-8')}")
+
+    # Build Master Output ZIP archive containing all deliverables
+    create_zip_archive()
+
+if __name__ == "__main__":
+    create_methodology_document()

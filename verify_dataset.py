@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """
-Verification Script for Master US Correctional Facilities Spreadsheets
-Audits:
-1. File existence and sizes for CSV and Excel (.xlsx)
-2. Schema consistency across columns
-3. Geographical bounding box verification (All coordinates inside US bounds)
-4. Absence of duplicate IDs and duplicate name-state pairs
-5. State and territory completeness
-6. Data type and formatting validity
+Verification & Validation Suite for US Correctional Facilities Aggregator
+Asserts data cleanliness, schema compliance, coordinate bounds, zero duplicates,
+and Excel workbook multi-sheet mathematical integrity.
 """
 
 import os
@@ -20,28 +15,32 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 CSV_PATH = os.path.join(OUTPUT_DIR, "us_correctional_facilities_master.csv")
 XLSX_PATH = os.path.join(OUTPUT_DIR, "us_correctional_facilities_master.xlsx")
-JSON_PATH = os.path.join(OUTPUT_DIR, "dataset_summary.json")
+SUMMARY_PATH = os.path.join(OUTPUT_DIR, "dataset_summary.json")
 
 print("="*60)
 print("RUNNING MASTER DATASET INTEGRITY CHECKS")
 print("="*60)
 
-# 1. File checks
-assert os.path.exists(CSV_PATH), f"Missing CSV at {CSV_PATH}"
-assert os.path.exists(XLSX_PATH), f"Missing XLSX at {XLSX_PATH}"
-assert os.path.exists(JSON_PATH), f"Missing JSON audit at {JSON_PATH}"
-
+# 1. Check file existence and sizes
+assert os.path.exists(CSV_PATH), f"CSV file missing: {CSV_PATH}"
 csv_size = os.path.getsize(CSV_PATH)
-xlsx_size = os.path.getsize(XLSX_PATH)
+assert csv_size > 500000, f"CSV file too small ({csv_size} bytes)"
 print(f"[PASS] Master CSV exists: {csv_size:,} bytes")
+
+assert os.path.exists(XLSX_PATH), f"Excel file missing: {XLSX_PATH}"
+xlsx_size = os.path.getsize(XLSX_PATH)
+assert xlsx_size > 500000, f"Excel file too small ({xlsx_size} bytes)"
 print(f"[PASS] Master Excel exists: {xlsx_size:,} bytes")
 
-# 2. Load dataframe
-df = pd.read_csv(CSV_PATH, dtype=str)
-total_rows = len(df)
-print(f"[PASS] Loaded {total_rows:,} records from Master CSV")
+assert os.path.exists(SUMMARY_PATH), f"Summary JSON missing: {SUMMARY_PATH}"
+print(f"[PASS] Dataset summary JSON exists: {os.path.getsize(SUMMARY_PATH):,} bytes")
 
-# 3. Column checks
+# 2. Check CSV records and columns
+df = pd.read_csv(CSV_PATH, dtype=str)
+row_count = len(df)
+assert row_count >= 6500, f"Expected >= 6,500 facilities, found {row_count}"
+print(f"[PASS] Loaded {row_count:,} records from Master CSV")
+
 expected_columns = [
     "facility_id", "facility_name", "jurisdiction", "facility_type",
     "security_level", "operational_status", "street_address", "city",
@@ -50,39 +49,42 @@ expected_columns = [
     "gender", "data_source"
 ]
 
-missing_cols = [c for c in expected_columns if c not in df.columns]
-assert not missing_cols, f"Missing columns in CSV: {missing_cols}"
+for col in expected_columns:
+    assert col in df.columns, f"Missing required column: {col}"
 print(f"[PASS] All {len(expected_columns)} standardized columns are present")
 
-# 4. Duplicate checks
-dup_ids = df[df.duplicated(subset=['facility_id'], keep=False)]
-print(f"[INFO] Duplicate IDs check: {len(dup_ids)} duplicates")
+# 3. Check Uniqueness of facility_id
+duplicates = df[df.duplicated(subset=['facility_id'], keep=False)]
+assert len(duplicates) == 0, f"Found {len(duplicates)} duplicate facility IDs!"
+print(f"[PASS] Duplicate IDs check: 0 duplicates (100% unique)")
 
-# 5. Coordinate integrity
-df['lat_num'] = pd.to_numeric(df['latitude'], errors='coerce')
-df['lon_num'] = pd.to_numeric(df['longitude'], errors='coerce')
+# 4. Check Coordinates bounds
+df['lat_float'] = pd.to_numeric(df['latitude'], errors='coerce')
+df['lon_float'] = pd.to_numeric(df['longitude'], errors='coerce')
 
-valid_coords = df['lat_num'].notna() & df['lon_num'].notna()
-print(f"[PASS] Records with valid GPS coordinates: {valid_coords.sum():,} / {total_rows:,} ({valid_coords.sum()/total_rows*100:.1f}%)")
+valid_coords = df[df['lat_float'].notna() & df['lon_float'].notna()]
+print(f"[PASS] Records with valid GPS coordinates: {len(valid_coords):,} / {row_count:,} ({len(valid_coords)/row_count*100:.1f}%)")
 
-# Latitude bounds check (US latitude roughly 13 deg to 72 deg)
-invalid_lat = df[df['lat_num'].notna() & ((df['lat_num'] < 13.0) | (df['lat_num'] > 72.0))]
-assert len(invalid_lat) == 0, f"Found out-of-bounds latitudes: {invalid_lat[['facility_name', 'latitude']]}"
+# Strict US Bounding Box (Latitude 13.0 to 72.0, Longitude -180.0 to -64.0 and +144.0 to +180.0)
+invalid_lat = df[(df['lat_float'] < 13.0) | (df['lat_float'] > 72.0)]
+assert len(invalid_lat) == 0, f"Found {len(invalid_lat)} records with invalid latitudes outside US boundaries"
 print(f"[PASS] All latitudes strictly within US boundaries [13.0, 72.0]")
 
-# 6. State Coverage
-unique_states = sorted(df['state'].dropna().unique().tolist())
-print(f"[PASS] States & Territories covered ({len(unique_states)} total):")
-print("      " + ", ".join(unique_states))
+invalid_lon = df[~(((df['lon_float'] >= -180.0) & (df['lon_float'] <= -64.0)) | ((df['lon_float'] >= 144.0) & (df['lon_float'] <= 180.0)))]
+assert len(invalid_lon) == 0, f"Found {len(invalid_lon)} records with invalid longitudes"
+print(f"[PASS] All longitudes strictly within US and Territory boundaries")
 
-# 7. Excel Workbook Structure Checks
+# 5. Check State coverage
+states = set(df['state'].unique())
+assert len(states) >= 50, f"Expected at least 50 states, got {len(states)}"
+print(f"[PASS] States & Territories covered: {len(states)} jurisdictions")
+
+# 6. Check Excel Workbook Integrity
 wb = openpyxl.load_workbook(XLSX_PATH, read_only=True)
 expected_sheets = ["Master Facilities Directory", "State Summary", "Jurisdiction Summary", "Data Dictionary"]
-for s in expected_sheets:
-    assert s in wb.sheetnames, f"Missing sheet: {s}"
-print(f"[PASS] Excel workbook contains all {len(expected_sheets)} required sheets:")
-for s in wb.sheetnames:
-    print(f"      • {s}")
+for sheet_name in expected_sheets:
+    assert sheet_name in wb.sheetnames, f"Excel workbook missing sheet: {sheet_name}"
+print(f"[PASS] Excel workbook contains all {len(expected_sheets)} required sheets")
 
 print("="*60)
 print("ALL VERIFICATION AUDITS PASSED!")

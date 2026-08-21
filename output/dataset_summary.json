@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-21T01:40:57.732202+00:00",
+  "generated_at": "2026-08-21T02:14:40.572806+00:00",
   "total_unique_facilities": 6768,
   "total_reported_capacity": 2411708,
   "total_reported_population": 2069547,
   "facilities_with_gps_coordinates": 6768,
   "facilities_with_street_address": 6765,
-  "facilities_with_phone_number": 6229,
-  "facilities_with_website": 5997,
+  "facilities_with_phone_number": 6228,
+  "facilities_with_website": 5996,
   "states_and_territories_count": 55,
   "states_list": [
     "AK",

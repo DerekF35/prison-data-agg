@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Prison Data Aggregator - Master Pipeline (Audited & Flawless)
-Builds a unified, standardized, non-lossy database and spreadsheets (CSV + XLSX)
+Prison Data Aggregator - Master Pipeline (Audited & Robust)
+Builds a unified, standardized database and spreadsheets (CSV + XLSX)
 of all US correctional facilities across Federal, State, County, and Private sectors.
 """
 
@@ -30,7 +30,7 @@ XLSX_FILE = os.path.join(OUTPUT_DIR, "us_correctional_facilities_master.xlsx")
 SUMMARY_FILE = os.path.join(OUTPUT_DIR, "dataset_summary.json")
 
 print("="*70)
-print("US CORRECTIONAL FACILITIES MASTER AGGREGATION PIPELINE (AUDITED)")
+print("US CORRECTIONAL FACILITIES MASTER AGGREGATION PIPELINE")
 print("="*70)
 
 # ----------------------------------------------------------------------
@@ -109,9 +109,11 @@ else:
 print(f"\n[3/6] Normalizing, Classifying, and Parsing records...")
 
 SENTINEL_STRINGS = {
-    "NOT AVAILABLE", "UNAVAILABLE", "NONE", "NULL", "-999", "-999.0", "N/A", "UNKNOWN", 
-    "NOT APPLICABLE", "", "-1", "-1--1", "-1-", "0", "000-000-0000"
+    "NOT AVAILABLE", "UNAVAILABLE", "NONE", "NULL", "-999", "-999.0", "N/A", "NA", "UNKNOWN", 
+    "NOT APPLICABLE", "NOT REPORTED", "UNSPECIFIED", "", "-1", "-1--1", "-1-", "000-000-0000"
 }
+
+SENTINEL_INTS = {-999, -1, 99999}
 
 ACRONYMS = {
     'USP', 'FCI', 'ADX', 'ADMAX', 'FDC', 'MDC', 'FMC', 'FPC', 'MCC', 'FCC', 'BOP', 'DOC', 
@@ -206,6 +208,10 @@ def clean_phone(val):
         return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
     elif len(digits) == 11 and digits.startswith('1'):
         return f"({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
+    elif len(digits) > 10:
+        # Format main 10 digits and keep extension if present
+        ext = digits[10:]
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:10]} Ext {ext}"
     if len(digits) < 7:
         return ""
     return text
@@ -215,7 +221,7 @@ def clean_int(val):
         return None
     try:
         f = float(val)
-        if f <= 0 or f == 9999 or f == 99999 or f == -999 or f == -1:
+        if f in SENTINEL_INTS or f < 0:
             return None
         return int(round(f))
     except (ValueError, TypeError):
@@ -230,7 +236,8 @@ def clean_coord(val, is_lat=True):
             if 13.0 <= f <= 72.0:  # Valid US latitude range
                 return round(f, 6)
         else:
-            if (-180.0 <= f <= -64.0) or (144.0 <= f <= 146.0):  # Valid US longitude range
+            # Valid US longitude range (Lower 48, AK, Territories, Aleutians up to +180)
+            if (-180.0 <= f <= -64.0) or (144.0 <= f <= 180.0):
                 return round(f, 6)
         return None
     except (ValueError, TypeError):
@@ -239,7 +246,6 @@ def clean_coord(val, is_lat=True):
 def format_title(text):
     if not text:
         return ""
-    # Normalize spaces around hyphens and slashes
     text = re.sub(r'\s*-\s*', ' - ', text)
     text = re.sub(r'\s*/\s*', ' / ', text)
     words = text.split()
@@ -253,9 +259,11 @@ def format_title(text):
         core_upper = core.upper()
         core_clean = re.sub(r'[^A-Za-z0-9]', '', core_upper)
         
-        # Possessive check: e.g. Men's, Women's, Sheriff's
+        # Possessive check: e.g. Men's, Women's, Sheriff's, McDonald's
         if core.lower().endswith("'s"):
             base = core[:-2].capitalize()
+            base = re.sub(r'^Mc([a-z])', lambda x: 'Mc' + x.group(1).upper(), base)
+            base = re.sub(r"^O'([a-z])", lambda x: "O'" + x.group(1).upper(), base)
             core_formatted = f"{base}'s"
         elif core_clean in ACRONYMS:
             core_formatted = core_upper
@@ -263,6 +271,9 @@ def format_title(text):
             core_formatted = core.lower()
         else:
             core_formatted = core.capitalize()
+            # Smart capitalization for Mc and O' prefixes (e.g. McDuffie, McCreary, McKean, O'Brien, O'Farrell)
+            core_formatted = re.sub(r'^Mc([a-z])', lambda x: 'Mc' + x.group(1).upper(), core_formatted)
+            core_formatted = re.sub(r"^O'([a-z])", lambda x: "O'" + x.group(1).upper(), core_formatted)
             
         formatted.append(f"{prefix}{core_formatted}{suffix}")
         
@@ -271,6 +282,7 @@ def format_title(text):
         res = res[0].upper() + res[1:]
     res = re.sub(r'\s+-\s+', ' - ', res)
     res = re.sub(r'\s+/\s+', ' / ', res)
+    res = re.sub(r"\bO'([a-z])", lambda x: "O'" + x.group(1).upper(), res)
     return res
 
 # A. Consolidate HIFLD by unique FACILITYID
@@ -279,6 +291,7 @@ for feat in hifld_raw:
     attrs = feat.get("attributes", {})
     fac_id = clean_text(attrs.get("FACILITYID"))
     if not fac_id:
+        print(f"[WARN] Skipping record missing FACILITYID: {attrs.get('NAME')}")
         continue
     
     geom = feat.get("geometry", {})
@@ -294,7 +307,7 @@ for feat in hifld_raw:
 
 print(f"[+] Unique baseline physical facilities from HIFLD: {len(hifld_dict):,}")
 
-# B. Enrich with BOP official data with STRICT entity matching (Prevent County Jail collisions)
+# B. Enrich with BOP official data with STRICT type guards (guarded against County Jail false positives)
 bop_matched_codes = set()
 enriched_hifld_count = 0
 standalone_bop_records = []
@@ -314,18 +327,22 @@ for bop in bop_raw:
         h_name = clean_text(attrs.get("NAME")).upper()
         h_type = clean_text(attrs.get("TYPE")).upper()
         
-        # Rule 1: Exact BOP Code in facility name and is federal or prison
-        if bop_code and (f" {bop_code} " in f" {h_name} " or h_name.startswith(f"{bop_code} ")):
+        is_fed = (h_type in ("FEDERAL", "MULTI") or "FEDERAL" in h_name or "USP " in h_name or 
+                  "FCI " in h_name or "MDC " in h_name or "FDC " in h_name or "MCC " in h_name or 
+                  "FMC " in h_name or "FPC " in h_name or "ADX " in h_name)
+        
+        # Rule 1: Exact BOP Code in facility name and MUST be Federal
+        if bop_code and is_fed and (f" {bop_code} " in f" {h_name} " or h_name.startswith(f"{bop_code} ")):
             matched_id = fac_id
             break
             
         # Rule 2: Full Title Match (e.g. 'FPC ALDERSON' == 'FPC ALDERSON')
-        if bop_name and (bop_name == h_name):
+        if bop_name and is_fed and (bop_name == h_name):
             matched_id = fac_id
             break
             
-        # Rule 3: High-confidence Federal match (MUST be Federal type and match institution name)
-        if h_type == "FEDERAL" or "FEDERAL" in h_name or "USP " in h_name or "FCI " in h_name:
+        # Rule 3: High-confidence Federal match
+        if is_fed:
             b_city_norm = re.sub(r'[^A-Z]', '', bop_city)
             h_city_norm = re.sub(r'[^A-Z]', '', clean_text(attrs.get("CITY")).upper())
             b_name_norm = re.sub(r'[^A-Z]', '', bop.get("name", "").upper())
@@ -340,8 +357,11 @@ for bop in bop_raw:
         enriched_hifld_count += 1
         attrs, lat, lon = hifld_dict[matched_id]
         
-        if not attrs.get("WEBSITE") or "bop.gov" not in str(attrs.get("WEBSITE")).lower():
-            attrs["WEBSITE"] = f"https://www.bop.gov{bop.get('url')}" if bop.get("url") else "https://www.bop.gov"
+        if bop.get("url"):
+            attrs["WEBSITE"] = f"https://www.bop.gov{bop.get('url')}"
+        elif not attrs.get("WEBSITE") or "bop.gov" not in str(attrs.get("WEBSITE")).lower():
+            attrs["WEBSITE"] = "https://www.bop.gov/locations/"
+            
         if bop.get("phoneNumber"):
             attrs["TELEPHONE"] = bop.get("phoneNumber")
         if bop.get("securityLevel") and attrs.get("SECURELVL") in ["NOT AVAILABLE", "", None]:
@@ -351,7 +371,7 @@ for bop in bop_raw:
     else:
         standalone_bop_records.append(bop)
 
-print(f"[+] HIFLD records enriched with official BOP contact/URLs (collision-free): {enriched_hifld_count:,}")
+print(f"[+] HIFLD records enriched with official BOP contact/URLs: {enriched_hifld_count:,}")
 print(f"[+] Standalone federal institutions / regional offices added: {len(standalone_bop_records):,}")
 
 # C. Build normalized master record list
@@ -470,7 +490,7 @@ for bop in standalone_bop_records:
     bop_sec = clean_text(bop.get("securityLevel")).title() or "Administrative"
     bop_gender = clean_text(bop.get("gender")).title() or "Not Specified"
     bop_code = clean_text(bop.get("code")).upper()
-    bop_url = "https://www.bop.gov" + bop.get("url") if bop.get("url") else "https://www.bop.gov"
+    bop_url = "https://www.bop.gov" + bop.get("url") if bop.get("url") else "https://www.bop.gov/locations/"
     bop_st = clean_text(bop.get("state")).upper()
     
     fac_id_key = f"BOP-{bop_code}" if bop_code else f"BOP-{len(master_records)}"
@@ -618,7 +638,8 @@ state_agg = df_master.groupby('state').agg(
     County_Local=('jurisdiction', lambda x: (x == 'County / Local').sum()),
     Municipal_Local=('jurisdiction', lambda x: (x == 'Municipal / Local').sum()),
     Private=('jurisdiction', lambda x: (x == 'Private').sum()),
-    Multi_Jurisdiction=('jurisdiction', lambda x: (x == 'Multi-Jurisdiction').sum())
+    Multi_Jurisdiction=('jurisdiction', lambda x: (x == 'Multi-Jurisdiction').sum()),
+    Not_Specified=('jurisdiction', lambda x: (x == 'Not Specified').sum())
 ).reset_index().sort_values(by='Total_Facilities', ascending=False)
 
 state_headers = [
@@ -631,7 +652,8 @@ state_headers = [
     ("County / Local Jails", 18, align_right, "#,##0"),
     ("Municipal Jails", 16, align_right, "#,##0"),
     ("Private Facilities", 16, align_right, "#,##0"),
-    ("Multi-Jurisdiction", 16, align_right, "#,##0")
+    ("Multi-Jurisdiction", 16, align_right, "#,##0"),
+    ("Not Specified", 14, align_right, "#,##0")
 ]
 
 ws2.row_dimensions[1].height = 28
@@ -654,7 +676,8 @@ for row_idx, r in enumerate(state_agg.to_dict(orient="records"), start=2):
         (r['County_Local'], align_right, "#,##0"),
         (r['Municipal_Local'], align_right, "#,##0"),
         (r['Private'], align_right, "#,##0"),
-        (r['Multi_Jurisdiction'], align_right, "#,##0")
+        (r['Multi_Jurisdiction'], align_right, "#,##0"),
+        (r['Not_Specified'], align_right, "#,##0")
     ]
     for c_idx, (v, al, nf) in enumerate(vals, start=1):
         cell = ws2.cell(row=row_idx, column=c_idx, value=v)
@@ -714,56 +737,65 @@ for row_idx, r in enumerate(jur_agg.to_dict(orient="records"), start=2):
 ws3.freeze_panes = "A2"
 
 # ----------------------------------------------------------------------
-# Sheet 4: Data Dictionary
+# Sheet 4: Data Dictionary (Explicit 3-Column Mapping)
 # ----------------------------------------------------------------------
 ws4 = wb.create_sheet(title="Data Dictionary")
 ws4.views.sheetView[0].showGridLines = True
 
 dict_entries = [
-    ("facility_id", "Unique alphanumeric identifier assigned to each facility (HIFLD ID or BOP Code)."),
-    ("facility_name", "Official name of the correctional facility, standardized with Title Casing and uppercase acronyms."),
-    ("jurisdiction", "Level of government authority: Federal, State, County / Local, Municipal / Local, Private, Multi-Jurisdiction."),
-    ("facility_type", "Operational facility classification (State / Federal Prison, County / Local Jail, Juvenile Detention, Community Corrections, Medical/Psychiatric, etc.)."),
-    ("security_level", "Security classification: Maximum, Close, Medium, Minimum, Juvenile, Multi-Level, Administrative, Not Specified."),
-    ("operational_status", "Current operational status: Open, Closed, or Not Available."),
-    ("street_address", "Standardized physical street address of the facility."),
-    ("city", "City where the facility is physically located."),
-    ("state", "Two-letter US postal state / territory abbreviation (all 50 states, DC, PR, GU, VI, MP)."),
-    ("zip_code", "5-digit or 9-digit postal ZIP code."),
-    ("county", "County or parish name."),
-    ("county_fips", "5-digit Federal Information Processing Standard (FIPS) county code."),
-    ("phone_number", "Formatted telephone contact number for the facility."),
-    ("website", "Official website or government portal link for the facility."),
-    ("latitude", "WGS84 decimal degrees latitude (North)."),
-    ("longitude", "WGS84 decimal degrees longitude (West)."),
-    ("design_capacity", "Official design or rated bed capacity of the facility."),
-    ("population", "Estimated or reported inmate population count."),
-    ("gender", "Inmate gender housing designation: Male, Female, Co-ed, or Not Specified."),
-    ("data_source", "Primary origin of data: DHS HIFLD Critical Infrastructure or Federal Bureau of Prisons.")
+    ("Facility ID", "facility_id", "Unique alphanumeric identifier assigned to each facility (HIFLD ID or BOP Code)."),
+    ("Facility Name", "facility_name", "Official name of the correctional facility, standardized with Title Casing, Irish/Scottish prefix preservation (Mc/O'), and uppercase acronyms."),
+    ("Jurisdiction", "jurisdiction", "Level of government authority: Federal, State, County / Local, Municipal / Local, Private, Multi-Jurisdiction, or Not Specified."),
+    ("Facility Classification", "facility_type", "Operational facility classification (State / Federal Prison, County / Local Jail, Juvenile Detention, Community Corrections, Medical/Psychiatric, etc.)."),
+    ("Security Level", "security_level", "Security classification: Maximum, Close, Medium, Minimum, Juvenile, Multi-Level, Administrative, Not Specified."),
+    ("Operational Status", "operational_status", "Current operational status: Open, Closed, or Not Available."),
+    ("Street Address", "street_address", "Standardized physical street address of the facility."),
+    ("City", "city", "City where the facility is physically located."),
+    ("State", "state", "Two-letter US postal state / territory abbreviation (all 50 states, DC, PR, GU, VI, MP)."),
+    ("ZIP Code", "zip_code", "5-digit or 9-digit postal ZIP code with preserved leading zeroes."),
+    ("County", "county", "County, parish, or borough name."),
+    ("County FIPS", "county_fips", "5-digit Federal Information Processing Standard (FIPS) county code with preserved leading zeroes."),
+    ("Phone Number", "phone_number", "Formatted telephone contact number for the facility (including extensions where reported)."),
+    ("Website", "website", "Official website or government portal link for the facility."),
+    ("Latitude", "latitude", "WGS84 decimal degrees latitude (North)."),
+    ("Longitude", "longitude", "WGS84 decimal degrees longitude (West / East)."),
+    ("Design Capacity", "design_capacity", "Official design or rated bed capacity of the facility."),
+    ("Population", "population", "Reported inmate population count (valid zero population preserved for unoccupied/holding facilities)."),
+    ("Gender", "gender", "Inmate gender housing designation: Male, Female, Co-ed, or Not Specified."),
+    ("Data Source", "data_source", "Primary origin of data: DHS HIFLD Critical Infrastructure or Federal Bureau of Prisons.")
 ]
 
 ws4.row_dimensions[1].height = 28
-ws4.column_dimensions['A'].width = 25
-ws4.column_dimensions['B'].width = 85
+ws4.column_dimensions['A'].width = 26
+ws4.column_dimensions['B'].width = 24
+ws4.column_dimensions['C'].width = 85
 
 fill_dict_header = PatternFill(start_color="333F48", end_color="333F48", fill_type="solid")
-c1 = ws4.cell(row=1, column=1, value="Field Name")
-c2 = ws4.cell(row=1, column=2, value="Description & Definition")
-for c in [c1, c2]:
+c1 = ws4.cell(row=1, column=1, value="Display Column Header")
+c2 = ws4.cell(row=1, column=2, value="CSV Field Name (snake_case)")
+c3 = ws4.cell(row=1, column=3, value="Description & Definition")
+
+for c in [c1, c2, c3]:
     c.font = font_header
     c.fill = fill_dict_header
     c.alignment = Alignment(horizontal="left", vertical="center")
 
-for row_idx, (f_name, desc) in enumerate(dict_entries, start=2):
-    cell_name = ws4.cell(row=row_idx, column=1, value=f_name)
-    cell_name.font = Font(name="Calibri", size=11, bold=True)
+for row_idx, (disp_name, f_name, desc) in enumerate(dict_entries, start=2):
+    cell_disp = ws4.cell(row=row_idx, column=1, value=disp_name)
+    cell_disp.font = Font(name="Calibri", size=11, bold=True)
+    cell_disp.alignment = align_left
+    cell_disp.border = thin_border
+    
+    cell_name = ws4.cell(row=row_idx, column=2, value=f_name)
+    cell_name.font = Font(name="Consolas", size=10, color="203764")
     cell_name.alignment = align_left
     cell_name.border = thin_border
     
-    cell_desc = ws4.cell(row=row_idx, column=2, value=desc)
+    cell_desc = ws4.cell(row=row_idx, column=3, value=desc)
     cell_desc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
     cell_desc.border = thin_border
     if row_idx % 2 == 0:
+        cell_disp.fill = fill_zebra
         cell_name.fill = fill_zebra
         cell_desc.fill = fill_zebra
 
@@ -804,7 +836,7 @@ with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
     json.dump(summary, f, indent=2)
 
 print("\n" + "="*70)
-print("AUDITED PIPELINE COMPLETED SUCCESSFULLY!")
+print("PIPELINE COMPLETED SUCCESSFULLY!")
 print("="*70)
 print(f"Total Master Facilities:        {summary['total_unique_facilities']:,}")
 print(f"Mapped Coordinates (GPS):       {summary['facilities_with_gps_coordinates']:,} ({summary['facilities_with_gps_coordinates']/summary['total_unique_facilities']*100:.1f}%)")
