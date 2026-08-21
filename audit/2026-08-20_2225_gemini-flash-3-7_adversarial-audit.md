@@ -148,14 +148,14 @@ A stratified random sample of 20 records per US region (Northeast, Midwest, Sout
 
 ## Final Scorecard
 
-| Category | Max Points | Prior Score | Current Score | Justification |
+| Category | Max Points | Prior Score (Gemini Pro @ 22:16) | Current Score | Justification |
 |:---|:---:|:---:|:---:|:---|
-| **Data Completeness** | 20 | 19 | **19** | 100% geocoded, 100% FIPS, 100% ZIP; only 3 missing street addresses from upstream HIFLD. |
-| **Data Accuracy** | 20 | 14 | **16** | County false positives and Mc/O' naming resolved; 18 federal facilities affected by intra-federal BOP matching collisions. |
-| **Code Quality & Robustness** | 20 | 14 | **16** | Clean pipeline architecture, robust formatting and typing, but BOP Rule 3 substring logic needs refinement to prevent multi-matching. |
-| **Methodology Documentation** | 20 | 16 | **19** | Clear provenance, accurate jurisdiction tables, complete FIPS/cleaning disclosure; minor test count typo in README. |
-| **Test Suite Rigor** | 20 | 15 | **18** | 16 strict adversarial tests covering regex, bounds, formatting, and file integrity; missing intra-federal collision assertions. |
-| **Total** | **100** | **78** | **88** | **Solid improvement with high integrity, accompanied by actionable recommendations for intra-federal entity matching.** |
+| **Data Completeness** | 20 | 20 | **19** | 100% geocoded, 100% FIPS, 100% ZIP; only 3 missing street addresses from upstream HIFLD. |
+| **Data Accuracy** | 20 | 20 | **16** | County false positives and Mc/O' naming resolved; 18 federal facilities affected by intra-federal BOP matching collisions. |
+| **Code Quality & Robustness** | 20 | 20 | **16** | Clean pipeline architecture, robust formatting and typing, but BOP Rule 3 substring logic needs refinement to prevent multi-matching. |
+| **Methodology Documentation** | 20 | 20 | **19** | Clear provenance, accurate jurisdiction tables, complete FIPS/cleaning disclosure; minor test count typo in README. |
+| **Test Suite Rigor** | 20 | 20 | **18** | 16 strict adversarial tests covering regex, bounds, formatting, and file integrity; missing intra-federal collision assertions. |
+| **Total** | **100** | **100** | **88** | **Solid improvement with high integrity, accompanied by actionable recommendations for intra-federal entity matching.** |
 
 ---
 

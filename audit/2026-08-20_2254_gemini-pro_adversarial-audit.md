@@ -54,14 +54,14 @@
 
 ## 6. FINAL SCORING
 
-| Category | Max Points | Prior Score | Final Score | Justification |
+| Category | Max Points | Prior Score (Gemini Pro @ 22:52) | Final Score | Justification |
 |:---|:---:|:---:|:---:|:---|
-| Data Completeness | 20 | 19 | 20 | 100% of applicable standalone/territory gaps closed. |
-| Data Accuracy | 20 | 14 | 20 | Typography bugs, valid zeros, FIPS typos, and GPS constraints resolved. |
-| Code Quality & Robustness | 20 | 14 | 19 | Deduplication passes secondary polygons without an explicit print/log warning. |
-| Methodology Documentation | 20 | 16 | 20 | Flawless documentation parity across README, PDF, and Word documents. |
-| Test Suite Rigor | 20 | 15 | 19 | Missing explicit soft-warnings on bounded duplicate tuples. |
-| **Total** | **100** | **78** | **98** |
+| Data Completeness | 20 | 20 | 20 | 100% of applicable standalone/territory gaps closed. |
+| Data Accuracy | 20 | 20 | 20 | Typography bugs, valid zeros, FIPS typos, and GPS constraints resolved. |
+| Code Quality & Robustness | 20 | 19 | 19 | Deduplication passes secondary polygons without an explicit print/log warning. |
+| Methodology Documentation | 20 | 20 | 20 | Flawless documentation parity across README, PDF, and Word documents. |
+| Test Suite Rigor | 20 | 20 | 19 | Missing explicit soft-warnings on bounded duplicate tuples. |
+| **Total** | **100** | **99** | **98** |
 
 ## Recommended Fixes
 

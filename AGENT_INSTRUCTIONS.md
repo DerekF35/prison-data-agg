@@ -73,11 +73,13 @@ Whenever the ETL pipeline is executed, all deliverables must remain **100% synch
 
 ---
 
-## 📜 5. Audit Logging & Git History
+## 📜 5. Audit Logging & Scorecard Standards
 
 1. **Audit Persistence**:
    * All audit reports must be saved directly to the `audit/` directory with the standard filename format:
      `audit/YYYY-MM-DD_HHMM_<model-name>_adversarial-audit.md`
    * Never delete, overwrite, or truncate past audit reports.
-2. **Clean Commits**:
+2. **Prior Score Referencing**:
+   * When writing a scorecard with a "Prior Score" column, the auditor MUST inspect the immediately preceding audit markdown file in `audit/` to extract the true chronological prior score, rather than copying static placeholder numbers from prompt templates.
+3. **Clean Commits**:
    * Commit messages must clearly specify the exact changes made, entities affected, and tests verified.

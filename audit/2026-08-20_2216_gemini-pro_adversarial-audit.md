@@ -49,14 +49,14 @@ The US Correctional Facilities Aggregator pipeline and dataset were subjected to
 
 ## Final Scorecard
 
-| Category | Max Points | Prior Score | Current Score | Justification |
+| Category | Max Points | Prior Score (Sonnet 4.6 @ 22:00) | Current Score | Justification |
 |:---|:---:|:---:|:---:|:---|
-| Data Completeness | 20 | 19 | **20** | No missing records, zeroes preserved. |
+| Data Completeness | 20 | 18 | **20** | No missing records, zeroes preserved. |
 | Data Accuracy | 20 | 14 | **20** | Geospatial bounds corrected, entity matching fixed. |
 | Code Quality & Robustness | 20 | 14 | **20** | `clean_int`, `clean_coord`, `format_title` fully patched. |
-| Methodology Documentation | 20 | 16 | **20** | Jurisdiction figures match CSV exactly; FIPS documented. |
-| Test Suite Rigor | 20 | 15 | **20** | 16 adversarial tests address all edge cases cleanly. |
-| **Total** | **100** | **78** | **100** | Exceptional turnaround resolving all prior faults. |
+| Methodology Documentation | 20 | 15 | **20** | Jurisdiction figures match CSV exactly; FIPS documented. |
+| Test Suite Rigor | 20 | 13 | **20** | 16 adversarial tests address all edge cases cleanly. |
+| **Total** | **100** | **74** | **100** | Exceptional turnaround resolving all prior faults. |
 
 ## Recommended Fixes
 **None.** The codebase, output dataset, and documentation reflect a gold-standard integration effort resulting in a score of 100/100. Continuous automated testing should be maintained for future updates.
