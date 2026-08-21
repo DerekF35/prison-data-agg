@@ -94,7 +94,7 @@ def create_methodology_document():
     meta_run = meta_p.add_run(
         f"Publication Date: {datetime.now().strftime('%B %d, %Y')}  |  "
         "Coverage: All 50 States, DC, PR, GU, VI, MP (6,788 Facilities)  |  "
-        "Version: 2.3 (Audited & Verified)"
+        "Version: 2.4 (Audited & Verified)"
     )
     meta_run.font.name = "Calibri"
     meta_run.font.size = Pt(9.5)
@@ -209,7 +209,7 @@ def create_methodology_document():
         "and sentinel placeholders. The pipeline enforces rigorous cleaning and enrichment algorithms:"
     )
     add_bullet("Multi-Part Feature Deduplication: ",
-               "HIFLD polygon boundaries frequently export multiple geometry centroids for a single campus, resulting in 4,000 "
+               "HIFLD polygon boundaries frequently export multiple geometry centroids for a single campus, resulting in 4,001 "
                "redundant rows. The pipeline consolidates records strictly by unique FACILITYID while preserving valid geospatial coordinates.")
     add_bullet("Type-Guarded & Camp-Parity BOP Entity Matching: ",
                "To prevent false positives across both county facilities and intra-federal complexes (e.g. Beaumont, Atlanta, Coleman), "
@@ -257,8 +257,26 @@ def create_methodology_document():
             else:
                 run.font.color.rgb = RGBColor(0x26, 0x26, 0x26)
 
-    # --- 5. Data Dictionary ---
-    add_heading_1("5. Standardized Data Dictionary (20 Master Fields)")
+    # --- 5. Known Limitations & Upstream Anomalies ---
+    add_heading_1("5. Known Data Limitations & Upstream Source Anomalies")
+    add_body(
+        "Researchers, auditors, and policy analysts should take note of the following known characteristics "
+        "and upstream data anomalies present in primary government source records:"
+    )
+    add_bullet("Point-in-Time Census Variations: ",
+               "Reported inmate populations reflect point-in-time census snapshots provided during individual state and federal "
+               "reporting cycles rather than live real-time daily headcounts.")
+    add_bullet("Upstream Population vs. Capacity Outliers: ",
+               "There are 8 specific county/state facilities where reported population exceeds 3x rated design capacity "
+               "(e.g., Woodman State Jail TX reporting population 6,478 vs design capacity 900; Fulton County Jail IN reporting 133 vs 35; "
+               "Burke County Jail NC reporting 262 vs 66). These represent known upstream DHS HIFLD data artifacts preserved as recorded by the source agency.")
+    add_bullet("Campus Co-Location of Distinct Agencies: ",
+               "A small number of municipal and state facilities share identical street addresses or GPS coordinates due to co-located campuses "
+               "(e.g., county sheriff dispatch and municipal jail in the same civic center, or psychiatric hospital and detention unit on one state hospital campus). "
+               "These are preserved as separate records with unique primary IDs.")
+
+    # --- 6. Data Dictionary ---
+    add_heading_1("6. Standardized Data Dictionary (20 Master Fields)")
     add_body(
         "Both the master CSV and Excel spreadsheets feature 20 fully standardized columns. "
         "The table below defines each programmatic field name and its corresponding Excel column header:"

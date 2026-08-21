@@ -14,7 +14,7 @@ Tests:
 10. BOP Entity Matching Protection: Zero county jails misassigned federal BOP institution URLs
 11. Intra-Federal Complex Matching Precision: No cross-facility URL overwriting in FCC complexes or RRM offices (Beaumont, Atlanta, Miami)
 12. BOP-sourced records coordinate completeness (100% have GPS)
-13. Duplicate name/coordinate inspection and accounting
+13. Duplicate name/coordinate inspection and strict upper-bound threshold validation (<=10)
 14. Exact parity between CSV and Excel Master Directory
 15. Excel Summary Tabs match ground truth aggregations
 16. Excel Data Dictionary 3-column mapping completeness
@@ -170,10 +170,13 @@ bop_missing_gps = bop_only[bop_only['lat_f'].isna() | bop_only['lon_f'].isna()]
 assert len(bop_missing_gps) == 0, f"BOP records missing GPS: {len(bop_missing_gps)}"
 print(f"[PASS] Test 12: All {len(bop_only)} standalone BOP records possess 100.0% valid GPS coordinates")
 
-# Test 13: Duplicate Inspection & Accounting
+# Test 13: Duplicate Inspection & Strict Threshold Bound Verification
 dup_names = df[df.duplicated(subset=['facility_name', 'city', 'state'], keep=False)]
 dup_coords = df[df.duplicated(subset=['latitude', 'longitude'], keep=False)]
-print(f"[PASS] Test 13: Accounted for {len(dup_names)} campus co-located records and {len(dup_coords)} co-located agency offices")
+
+assert len(dup_names) <= 10, f"Unexpected spike in duplicate facility names: {len(dup_names)}"
+assert len(dup_coords) <= 10, f"Unexpected spike in duplicate coordinates: {len(dup_coords)}"
+print(f"[PASS] Test 13: Accounted for {len(dup_names)} campus co-located records and {len(dup_coords)} co-located agency offices within strict <=10 upper bounds")
 
 # Test 14: Exact Parity between CSV and Excel Master Directory
 wb = openpyxl.load_workbook(XLSX_PATH, data_only=True)

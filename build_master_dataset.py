@@ -307,6 +307,8 @@ def format_title(text):
 
 # A. Consolidate HIFLD by unique FACILITYID
 hifld_dict = {}
+multipart_consolidated_count = 0
+
 for feat in hifld_raw:
     attrs = feat.get("attributes", {})
     fac_id = clean_text(attrs.get("FACILITYID"))
@@ -321,14 +323,13 @@ for feat in hifld_raw:
     if fac_id not in hifld_dict:
         hifld_dict[fac_id] = (attrs, lat, lon)
     else:
+        multipart_consolidated_count += 1
         existing_attrs, ex_lat, ex_lon = hifld_dict[fac_id]
         if ex_lat is None and lat is not None:
             hifld_dict[fac_id] = (attrs, lat, lon)
-        elif ex_lat is not None and lat is not None:
-            # Retaining primary centroid for duplicate multipart GIS boundary
-            pass
 
 print(f"[+] Unique baseline physical facilities from HIFLD: {len(hifld_dict):,}")
+print(f"[+] Multi-part polygon features consolidated: {multipart_consolidated_count:,} secondary nodes merged")
 
 # B. Enrich with BOP official data with TYPE-GUARDED & CAMP-PARITY NON-COLLISION MATCHING
 bop_matched_hifld_ids = set()
